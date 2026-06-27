@@ -1309,7 +1309,7 @@ void CheckLanguage(void)
 	{
 		LoadEnglish();
 	}
-	else//жпнд
+	else//О©╫О©╫О©╫О©╫
 	{
 		LoadChinese();
 	}
@@ -2319,12 +2319,16 @@ re_showfile:
 			{
 				if(page_num==SD_list){
 					//res = f_getcwd(currentpath, sizeof currentpath / sizeof *currentpath);		
-		      if( show_offset+file_select <  folder_total)
-		      {	   				
-	   				if(strcmp(currentpath,"/") !=0){	
-	   					sprintf(currentpath,"%s%s",currentpath,"/");
+		      		if( show_offset+file_select <  folder_total)
+		      		{	   				
+						if(strcmp(currentpath,"/") !=0){	
+							size_t len = strlen(currentpath);
+							if (len < MAX_path_len - 1) { // Space for '/' and Null-Terminator
+								currentpath[len] = '/';
+								currentpath[len + 1] = 0;
+							}
 						}
-		      	sprintf(currentpath,"%s%s",currentpath,pFolder[show_offset+file_select].filename);
+						strncat(currentpath, pFolder[show_offset+file_select].filename, MAX_path_len - strlen(currentpath) - 1);
 		      	
 						res=f_chdir(currentpath);
 						if(res != FR_OK){
