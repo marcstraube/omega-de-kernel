@@ -569,8 +569,12 @@ void IWRAM_CODE FW_update(u16 DEcard_FW_readver, u16 FW_built_in_ver, void *FWbi
 			sprintf(msg, "update finished,power off manual");
 			DrawHZText12(msg, 0, 2, offset_Y + 8 * line_x, 0x7FFF, 1);
 
+			// intentional halt: device must be powered off manually after a FW update
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wanalyzer-infinite-loop"
 			while (1)
 				;
+#pragma GCC diagnostic pop
 			break;
 		}
 		else if (keys & KEY_B)

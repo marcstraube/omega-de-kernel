@@ -2028,8 +2028,12 @@ int main(void)
 	{
 		DrawHZText12(gl_init_error, 0, 2, 20, gl_color_cheat_black, 1);
 		DrawHZText12(gl_power_off, 0, 2, 33, gl_color_cheat_black, 1);
+		// intentional halt: SD mount failed, nothing to boot — wait for power-off
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wanalyzer-infinite-loop"
 		while (1)
 			;
+#pragma GCC diagnostic pop
 	}
 	else
 	{
@@ -2610,8 +2614,12 @@ void Boot_NOR_game(u32 show_offset, u32 file_select, u32 key_L)
 	Send_FATbuffer(FAT_table_buffer, 1); // only RTS FAT and some parameter
 	// wait_btn();
 	SetRompageWithHardReset(pNorFS[show_offset + file_select].rompage, key_L);
+	// intentional halt: hard reset into the selected ROM is in progress
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wanalyzer-infinite-loop"
 	while (1)
 		;
+#pragma GCC diagnostic pop
 }
 //---------------------------------------------------------------
 u8 FRAM_save_op(u8 OP)
