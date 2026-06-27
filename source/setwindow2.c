@@ -280,7 +280,7 @@ u32 Setting_window2(void)
 			}
 			else if (keys & KEY_DOWN)
 			{
-				if (select < line_total - 1)
+				if (select < (u32)(line_total - 1))
 				{
 					select++;
 					re_show = 1;
