@@ -71,6 +71,7 @@ u16 gl_cheat_on;
 
 u16 gl_auto_save_sel;
 u16 gl_ModeB_init;
+u16 gl_toggle_backup;
 
 u16 gl_led_open_sel;
 u16 gl_Breathing_R;
@@ -1458,6 +1459,11 @@ void CheckSwitch(void)
 	{
 		gl_SD_B = 0x0;
 	}
+	gl_toggle_backup = Read_SET_info(assress_backup);
+	if (gl_toggle_backup > BACKUP_GEN_MAX)
+	{
+		gl_toggle_backup = BACKUP_GEN_DEFAULT;
+	}
 
 	u16 led_status = (gl_led_open_sel << 7) | (gl_Breathing_R << 5) | (gl_Breathing_G << 4) | (gl_Breathing_B << 3) |
 	                 (gl_SD_R << 2) | (gl_SD_G << 1) | (gl_SD_B);
@@ -1806,6 +1812,86 @@ u32 Get_savefilesize(BYTE saveMODE)
 	return savefilesize;
 }
 //---------------------------------------------------------------------------------
+u32 Copy_file(const TCHAR *src, const TCHAR *dst)
+{
+	u32 ret = 0;
+	UINT read_ret;
+	UINT write_ret;
+	u32 filesize;
+	u32 res;
+	u32 blocknum;
+	FIL dst_file;
+
+	res = f_open(&gfile, src, FA_READ);
+	if (res == FR_OK)
+	{
+		res = f_open(&dst_file, dst, FA_WRITE | FA_CREATE_ALWAYS);
+		if (res == FR_OK)
+		{
+			filesize = f_size(&gfile);
+			f_lseek(&gfile, 0x0000);
+
+			for (blocknum = 0x0000; blocknum < filesize; blocknum += MAX_pReadCache_size)
+			{
+				f_read(&gfile, pReadCache, MAX_pReadCache_size, &read_ret);
+				f_write(&dst_file, pReadCache, read_ret, &write_ret);
+				if (write_ret != read_ret)
+					break;
+				else
+					ret = 1;
+			}
+
+			f_close(&dst_file);
+
+			if (!ret)
+				f_unlink(dst);
+		}
+		f_close(&gfile);
+	}
+
+	return ret;
+}
+//---------------------------------------------------------------------------------
+void Backup_savefile(const TCHAR *filename, u32 generations)
+{
+	TCHAR temp_filename[MAX_path_len];
+	TCHAR temp_filename_dst[MAX_path_len];
+	int base_len;
+	s32 i;
+
+	if (generations == 0)
+		return;
+	if (generations > BACKUP_GEN_MAX)
+		generations = BACKUP_GEN_MAX;
+
+	// FatFs f_mkdir creates only a single level, so make the parent first
+	f_mkdir(BACKUP_ROOT);
+	f_mkdir(BACKUP_FOLDER);
+
+	// "/BACKUP/SAVER/<filename>", leaving room for the generation digit + NUL
+	base_len = snprintf(temp_filename, sizeof(temp_filename) - 2, "%s/%s", BACKUP_FOLDER, filename);
+	if (base_len < 0 || (u32)base_len >= sizeof(temp_filename) - 2)
+		return; // path too long, skip backup
+	memcpy(temp_filename_dst, temp_filename, base_len + 1);
+
+	// rotate generations: .(N-2) -> .(N-1), ..., .0 -> .1 (oldest drops off)
+	for (i = (s32)generations - 2; i >= 0; --i)
+	{
+		temp_filename[base_len] = '0' + i;
+		temp_filename[base_len + 1] = 0;
+		temp_filename_dst[base_len] = '0' + i + 1;
+		temp_filename_dst[base_len + 1] = 0;
+
+		f_unlink(temp_filename_dst);
+		f_rename(temp_filename, temp_filename_dst);
+	}
+
+	// newest live save -> .0
+	temp_filename[base_len] = '0';
+	temp_filename[base_len + 1] = 0;
+	Copy_file(filename, temp_filename);
+}
+//---------------------------------------------------------------------------------
 u8 Process_savefile(u32 is_EMU, TCHAR *pfilename, u32 gamefilesize, BYTE saveMODE)
 {
 	u32 res;
@@ -1854,6 +1940,7 @@ u8 Process_savefile(u32 is_EMU, TCHAR *pfilename, u32 gamefilesize, BYTE saveMOD
 	{
 		savefilesize = f_size(&gfile);
 		f_close(&gfile);
+		Backup_savefile(savfilename, gl_toggle_backup);
 	}
 	else // make a new one
 	{

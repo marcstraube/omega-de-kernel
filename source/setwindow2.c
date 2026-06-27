@@ -14,6 +14,7 @@
 u16 auto_save_sel;
 u16 ModeB_INIT;
 u16 led_open_sel;
+u16 toggle_backup;
 
 u16 Breathing_R;
 u16 Breathing_G;
@@ -25,6 +26,7 @@ u16 SD_B;
 
 extern u16 gl_auto_save_sel;
 extern u16 gl_ModeB_init;
+extern u16 gl_toggle_backup;
 
 extern u16 gl_led_open_sel;
 extern u16 gl_Breathing_R;
@@ -71,6 +73,7 @@ u32 Setting_window2(void)
 	u8 line_total;
 	u8 auto_save_pos = 1;
 	u8 led_pos = 1;
+	u8 backup_pos = 1;
 
 	u8 ModeB_pos = 3;
 
@@ -97,6 +100,7 @@ u32 Setting_window2(void)
 	ModeB_INIT = gl_ModeB_init;
 
 	led_open_sel = gl_led_open_sel;
+	toggle_backup = gl_toggle_backup;
 	Breathing_R = gl_Breathing_R;
 	Breathing_G = gl_Breathing_G;
 	Breathing_B = gl_Breathing_B;
@@ -183,14 +187,30 @@ u32 Setting_window2(void)
 				sprintf(msg, "%s", "B");
 				DrawHZText12(msg, 0, x_offset + 5 * 6 + 5 * 6 + 15 + 15 + 15, y_offset + line_x * 4,
 				             (led_pos == 7) ? gl_color_selected : gl_color_text, 1);
-				line_total = 3;
+				line_total = 4;
 			}
 			else
 			{
 
 				ClearWithBG((u16 *)gImage_SET2, 0, y_offset + line_x * 3, 240, 160 - (y_offset + line_x * 2), 1);
-				line_total = 3;
+				line_total = 4;
 			}
+
+			sprintf(msg, "%s", gl_lang_toggle_backup);
+			DrawHZText12(msg, 0, set_offset, y_offset + line_x * 5, gl_color_selected, 1);
+			Draw_select_icon(x_offset, y_offset + line_x * 5, (toggle_backup != 0x0));
+			ClearWithBG((u16 *)gImage_SET, x_offset + 15, y_offset + line_x * 5, 7 * 7, 13, 1);
+			if (toggle_backup == 0x0)
+			{
+				sprintf(msg, "%s", gl_disabled);
+			}
+			else
+			{
+				sprintf(msg, "%lu", (unsigned long)toggle_backup);
+			}
+			DrawHZText12(msg, 0, x_offset + 15, y_offset + line_x * 5,
+			             (backup_pos == 0) ? gl_color_selected : gl_color_text, 1);
+
 			u32 offsety;
 
 			for (line = 0; line < line_total; line++)
@@ -203,6 +223,8 @@ u32 Setting_window2(void)
 						clean_color = gl_color_btn_clean;
 					else if ((line == select) && (2 == select) && (led_pos == 1))
 						clean_color = gl_color_btn_clean;
+					else if ((line == select) && (3 == select) && (backup_pos == 1))
+						clean_color = gl_color_btn_clean;
 					else
 						clean_color = gl_color_MENU_btn;
 				}
@@ -214,6 +236,8 @@ u32 Setting_window2(void)
 						clean_color = gl_color_MENU_btn;
 				}
 				offsety = y_offset + line * line_x;
+				if (line > 2)
+					offsety += line_x * 2; // backup row sits below the two LED colour sub-rows
 				// if(line>1) offsety += line_x;
 
 				Clear(202, offsety - 2, 30, 14, clean_color, 1);
@@ -327,6 +351,10 @@ u32 Setting_window2(void)
 					else if ((led_pos < 7) && (led_pos > 1))
 						led_pos++;
 				}
+				if (select == 3)
+				{
+					backup_pos = 1;
+				}
 				re_show = 1;
 			}
 			else if (keys & KEY_LEFT)
@@ -349,6 +377,10 @@ u32 Setting_window2(void)
 						led_pos--;
 					else if (led_pos > 2)
 						led_pos--;
+				}
+				else if (select == 3)
+				{
+					backup_pos = 0;
 				}
 				re_show = 1;
 			}
@@ -434,6 +466,26 @@ u32 Setting_window2(void)
 						break;
 					}
 				}
+				else if (select == 3)
+				{
+					switch (backup_pos)
+					{
+					case 0:
+						toggle_backup = (toggle_backup + 1) % (BACKUP_GEN_MAX + 1);
+						break;
+					case 1:
+					{
+						save_set2_info();
+						Set_OK = 0;
+						gl_toggle_backup = Read_SET_info(assress_backup);
+						if (gl_toggle_backup > BACKUP_GEN_MAX)
+						{
+							gl_toggle_backup = BACKUP_GEN_DEFAULT;
+						}
+						break;
+					}
+					}
+				}
 				re_show = 1;
 			}
 			break;
@@ -459,6 +511,7 @@ void save_set2_info(void)
 	SET_info_buffer[assress_SD_R] = SD_R;
 	SET_info_buffer[assress_SD_G] = SD_G;
 	SET_info_buffer[assress_SD_B] = SD_B;
+	SET_info_buffer[assress_backup] = toggle_backup;
 
 	// save to nor
 	Save_SET_info(SET_info_buffer, 0x200);
