@@ -558,7 +558,7 @@ void Analyze_KEYVAL(FIL *file, u32 total)
 	u32 address_len;
 	u32 val_len;
 	char address_buf[8];
-	char val_buf[3];
+	char val_buf[3] = {0};
 	u32 is_val;
 	u32 is_address;
 	u32 address_add;
