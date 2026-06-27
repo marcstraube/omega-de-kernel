@@ -1,5 +1,5 @@
 typedef struct SAVE_MODE_SECT{	
-	char gamecode[4];		
+	char gamecode[4] __attribute__((nonstring));		
 	u8 savemode;	
 } SAVE_MODE_;
 const SAVE_MODE_  __attribute__((aligned(4))) saveMODE_table[] = { 

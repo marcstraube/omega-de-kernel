@@ -32,11 +32,19 @@ MUSIC		:=
 #---------------------------------------------------------------------------------
 ARCH	:=	-mthumb -mthumb-interwork
 
-CFLAGS	:=	-g -Wall -Os\
+CFLAGS	:=	-g -Wall -Wextra -Wshadow -Wformat=2 -Os\
 		-mcpu=arm7tdmi -mtune=arm7tdmi\
 		$(ARCH)
 
 CFLAGS	+=	$(INCLUDE)
+
+#---------------------------------------------------------------------------------
+# Static analysis: `make ANALYZE=1` adds GCC -fanalyzer (slow path-sensitive
+# analysis, codegen-neutral). Run on a clean tree: `make clean && make ANALYZE=1`.
+#---------------------------------------------------------------------------------
+ifneq ($(strip $(ANALYZE)),)
+CFLAGS	+=	-fanalyzer
+endif
 
 CXXFLAGS	:=	$(CFLAGS) -fno-rtti -fno-exceptions
 
@@ -110,7 +118,12 @@ export INCLUDE	:=	$(foreach dir,$(INCLUDES),-iquote $(CURDIR)/$(dir)) \
 
 export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib)
 
-.PHONY: $(BUILD) clean
+#---------------------------------------------------------------------------------
+# Hand-written sources for static analysis (excludes source/ff15 = FatFs upstream)
+#---------------------------------------------------------------------------------
+HWSOURCES	:=	$(wildcard $(CURDIR)/source/*.c)
+
+.PHONY: $(BUILD) clean cppcheck
 
 #---------------------------------------------------------------------------------
 $(BUILD):
@@ -121,6 +134,18 @@ $(BUILD):
 clean:
 	@echo clean ...
 	@rm -fr $(BUILD) $(TARGET).elf $(TARGET).gba
+
+#---------------------------------------------------------------------------------
+# cppcheck static analysis over hand-written sources (complements GCC -fanalyzer)
+#---------------------------------------------------------------------------------
+cppcheck:
+	@cppcheck --enable=warning,style,performance,portability \
+		--inline-suppr \
+		--suppress=missingIncludeSystem \
+		--suppress=unmatchedSuppression \
+		--suppress=unknownMacro \
+		-I $(CURDIR)/source -I $(CURDIR)/include -I $(CURDIR)/source/ff15 \
+		--quiet $(HWSOURCES)
 
 
 #---------------------------------------------------------------------------------

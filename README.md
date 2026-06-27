@@ -9,3 +9,9 @@
 
     3.Double click on build.bat under winodws. If it goes well, you will get ezkernelnew.gba
     4.Double click on  Link_kernel_image.exe link the ezkernelnew.gba and image.bin to ezkernelnew.bin, that is the omegaDE kernel upgrade file
+
+### Code quality
+
+Compiler warnings (`-Wall -Wextra …`) and two local static-analysis passes
+(GCC `-fanalyzer`, `cppcheck`) are documented in
+[docs/CODE_QUALITY.md](docs/CODE_QUALITY.md).
