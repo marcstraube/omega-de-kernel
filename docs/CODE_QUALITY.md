@@ -77,16 +77,30 @@ Regenerate any time with the commands above; counts shift as code changes.
 Types: 18× `-Wunused-parameter`, 10× `-Wsign-compare`, 7× `-Wshadow`.
 No buffer / format / bounds warnings.
 
-**`-fanalyzer` — 22 findings, all in hand-written sources:**
+**`-fanalyzer` — 0 findings** after the #16 triage. Resolved:
+- 3× `-Wanalyzer-use-of-uninitialized-value` (`showcht.c`, `val_buf`) — a
+  real bug, now initialized before the parse loop.
+- 16× `-Wanalyzer-undefined-behavior-ptrdiff` (`GBApatch.c`) — formal ISO-C
+  UB in the linker-symbol offset idiom, switched to integer subtraction.
+- 3× `-Wanalyzer-infinite-loop` (`Ezcard_OP.c:572`, `ezkernelnew.c:2031`,
+  `ezkernelnew.c:2613`) — intentional halts (FW-update "power off manual",
+  fatal SD-mount error, post-hard-reset wait). Annotated in place with
+  `#pragma GCC diagnostic ignored "-Wanalyzer-infinite-loop"` + a comment;
+  codegen-neutral, so the `.gba` stays byte-identical.
+- Adjacent buffer-overflow risk in the same cheat parser (unbounded
+  `val_buf`/`address_buf` writes) is tracked separately in #17.
 
-| Finding | Count | Where |
-|---|---|---|
-| `-Wanalyzer-undefined-behavior-ptrdiff` | 16 | `GBApatch.c` |
-| `-Wanalyzer-use-of-uninitialized-value` | 3 | `showcht.c:536` |
-| `-Wanalyzer-infinite-loop` | 3 | `Ezcard_OP.c:572`, `ezkernelnew.c:2031`, `ezkernelnew.c:2613` |
+**`make cppcheck` — 0 findings** (the 4 `RTC.c` style findings —
+3× `variableScope`, 1× `constParameterPointer` — were fixed in the #16 triage).
 
-**`make cppcheck` — 4 style findings:** `RTC.c` (3× `variableScope`,
-1× `constParameterPointer`).
+With both analyzers at 0, any new finding from a later change stands out
+immediately.
+
+> Note: the `val_buf`, `ptrdiff` and `RTC` fixes are **value-equivalent but
+> not byte-identical** — under `-Os` GCC re-selects equivalent instructions,
+> so each moves the `.gba` hash. They are verified by reasoning here and need a
+> real-hardware smoke-test before release (folded in with the GCC-16 toolchain
+> jump, which is also not yet hardware-verified).
 
 ## Follow-up (out of scope here)
 
