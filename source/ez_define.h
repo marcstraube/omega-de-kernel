@@ -41,6 +41,10 @@
 #define SET_info_offset 0x7B0000
 
 #define SAVER_FOLDER "/SAVER"
+#define BACKUP_ROOT "/BACKUP"
+#define BACKUP_FOLDER "/BACKUP/SAVER"
+#define BACKUP_GEN_MAX 9     // max selectable save-backup generations (single ASCII digit)
+#define BACKUP_GEN_DEFAULT 4 // applied on fresh NOR settings
 
 #define DMA_COPY_MODE 0X1
 #define SET_PARAMETER_MODE 0x2
@@ -97,6 +101,7 @@
 #define assress_SD_R 20
 #define assress_SD_G 21
 #define assress_SD_B 22
+#define assress_backup 23
 
 #define assress_saveMODE 64
 #define assress_max 65
