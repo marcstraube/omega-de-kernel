@@ -23,11 +23,10 @@ void rtc_disenable(void)
 void rtc_cmd(int v)
 {
 	int l;
-	u16 b;
 	v = v << 1;
 	for (l = 7; l >= 0; l--)
 	{
-		b = (v >> l) & 0x2;
+		u16 b = (v >> l) & 0x2;
 		*RTC_DATA = b | 4;
 		*RTC_DATA = b | 4;
 		*RTC_DATA = b | 4;
@@ -38,11 +37,10 @@ void rtc_cmd(int v)
 void rtc_data(int v)
 {
 	int l;
-	u16 b;
 	v = v << 1;
 	for (l = 0; l < 8; l++)
 	{
-		b = (v >> l) & 0x2;
+		u16 b = (v >> l) & 0x2;
 		*RTC_DATA = b | 4;
 		*RTC_DATA = b | 4;
 		*RTC_DATA = b | 4;
@@ -53,14 +51,13 @@ void rtc_data(int v)
 int rtc_read(void)
 {
 	int j, l;
-	u16 b;
 	int v = 0;
 	for (l = 0; l < 8; l++)
 	{
 		for (j = 0; j < 5; j++)
 			*RTC_DATA = 4;
 		*RTC_DATA = 5;
-		b = *RTC_DATA;
+		u16 b = *RTC_DATA;
 		v = v | ((b & 2) << l);
 	}
 	v = v >> 1;
@@ -98,7 +95,7 @@ int rtc_gettime(u8 *data)
 	return 0;
 }
 // --------------------------------------------------------------------
-void rtc_set(u8 *data)
+void rtc_set(const u8 *data)
 {
 	int i;
 	u8 newdata[7];
