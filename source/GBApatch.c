@@ -368,9 +368,9 @@ void Patch_Reset_Sleep(u32 *Data)
 	u8 *p_patch_Return_address_L = (u8 *)Return_address_L;
 
 	u8 *patchbuffer = (u8 *)_UnusedVram;
-	u32 Return_address_offset = p_patch_Return_address_L - p_patch_start;
+	u32 Return_address_offset = (u32)p_patch_Return_address_L - (u32)p_patch_start;
 
-	dmaCopy((void *)p_patch_start, patchbuffer, p_patch_end - p_patch_start);
+	dmaCopy((void *)p_patch_start, patchbuffer, (u32)p_patch_end - (u32)p_patch_start);
 	*(vu32 *)(patchbuffer + Return_address_offset) = Return_address; // 修改gba_sleep_patch_bin里面的返回地址
 
 	u16 read5 = Read_SET_info(assress_edit_sleephotkey_0);
@@ -382,8 +382,8 @@ void Patch_Reset_Sleep(u32 *Data)
 	u16 sleep_key = ~((1 << read5) | (1 << read6) | (1 << read7));
 	u16 reset_key = ~((1 << read8) | (1 << read9) | (1 << read10));
 
-	u32 Reset_key_offset = (u8 *)Reset_key - p_patch_start;
-	u32 Sleep_key_offset = (u8 *)Sleep_key - p_patch_start;
+	u32 Reset_key_offset = (u32)Reset_key - (u32)p_patch_start;
+	u32 Sleep_key_offset = (u32)Sleep_key - (u32)p_patch_start;
 
 	if (gl_reset_on != 1)
 	{
@@ -403,7 +403,7 @@ void Patch_Reset_Sleep(u32 *Data)
 		*(vu32 *)(patchbuffer + Sleep_key_offset) = sleep_key & 0x3FF;
 	}
 
-	Write(iTrimSize, patchbuffer, p_patch_end - p_patch_start);
+	Write(iTrimSize, patchbuffer, (u32)p_patch_end - (u32)p_patch_start);
 }
 //------------------------------------------------------------------
 void Patch_RTS_Cheat(u32 *Data)
@@ -416,9 +416,9 @@ void Patch_RTS_Cheat(u32 *Data)
 	u8 *p_patch_Return_address_L = (u8 *)RTS_Return_address_L;
 
 	u8 *patchbuffer = (u8 *)_UnusedVram;
-	u32 Return_address_offset = p_patch_Return_address_L - p_patch_start;
+	u32 Return_address_offset = (u32)p_patch_Return_address_L - (u32)p_patch_start;
 
-	dmaCopy((void *)p_patch_start, patchbuffer, p_patch_end - p_patch_start);
+	dmaCopy((void *)p_patch_start, patchbuffer, (u32)p_patch_end - (u32)p_patch_start);
 	*(vu32 *)(patchbuffer + Return_address_offset) = Return_address; // modify gba_sleep_patch_bin return address
 
 	if (spend_address != 0x0)
@@ -435,8 +435,8 @@ void Patch_RTS_Cheat(u32 *Data)
 	u16 RTS_sleep_key_val = ~((1 << read5) | (1 << read6) | (1 << read7));
 	u16 RTS_reset_key_val = ~((1 << read8) | (1 << read9) | (1 << read10));
 
-	u32 RTS_Reset_key_offset = (u8 *)RTS_Reset_key - p_patch_start;
-	u32 RTS_Sleep_key_offset = (u8 *)RTS_Sleep_key - p_patch_start;
+	u32 RTS_Reset_key_offset = (u32)RTS_Reset_key - (u32)p_patch_start;
+	u32 RTS_Sleep_key_offset = (u32)RTS_Sleep_key - (u32)p_patch_start;
 
 	*(vu32 *)(patchbuffer + RTS_Reset_key_offset) = RTS_reset_key_val & 0x3FF;
 	if (gl_sleep_on != 1)
@@ -449,16 +449,16 @@ void Patch_RTS_Cheat(u32 *Data)
 	}
 
 	// rts switch
-	u32 rts_switch_offset = (u8 *)RTS_switch - p_patch_start;
+	u32 rts_switch_offset = (u32)RTS_switch - (u32)p_patch_start;
 	*(vu32 *)(patchbuffer + rts_switch_offset) = gl_rts_on;
 
 	// cheat
 	u8 *p_no_cheat_end = (u8 *)no_CHEAT_end;
 
-	u32 cheat_count_offset = (u8 *)Cheat_count - p_patch_start;
+	u32 cheat_count_offset = (u32)Cheat_count - (u32)p_patch_start;
 	*(vu32 *)(patchbuffer + cheat_count_offset) = gl_cheat_count;
 
-	u32 cheat_offset = (u8 *)CHEAT - p_patch_start;
+	u32 cheat_offset = (u32)CHEAT - (u32)p_patch_start;
 
 	for (u32 ii = 0; ii < gl_cheat_count; ii++)
 	{
@@ -474,7 +474,7 @@ void Patch_RTS_Cheat(u32 *Data)
 		// DEBUG_printf("%x=%x", *(vu32*)(patchbuffer+cheat_offset+8*ii),*(vu32*)(patchbuffer+cheat_offset+8*ii+4));
 	}
 
-	u32 copysize = p_no_cheat_end - p_patch_start;
+	u32 copysize = (u32)p_no_cheat_end - (u32)p_patch_start;
 	copysize = copysize + gl_cheat_count * 8;
 
 	if (iTrimSize + copysize > 0x2000000)
@@ -496,9 +496,9 @@ void Patch_RTS_only(u32 *Data)
 	u8 *p_patch_Return_address_L = (u8 *)RTS_only_Return_address_L;
 
 	u8 *patchbuffer = (u8 *)_UnusedVram;
-	u32 Return_address_offset = p_patch_Return_address_L - p_patch_start;
+	u32 Return_address_offset = (u32)p_patch_Return_address_L - (u32)p_patch_start;
 
-	dmaCopy((void *)p_patch_start, patchbuffer, p_patch_end - p_patch_start);
+	dmaCopy((void *)p_patch_start, patchbuffer, (u32)p_patch_end - (u32)p_patch_start);
 	*(vu32 *)(patchbuffer + Return_address_offset) = Return_address; // modify gba_sleep_patch_bin return address
 
 	if (spend_address != 0x0)
@@ -515,13 +515,13 @@ void Patch_RTS_only(u32 *Data)
 	u16 RTS_only_SAVE_key_val = ~((1 << read5) | (1 << read6) | (1 << read7));
 	u16 RTS_only_LOAD_key_val = ~((1 << read8) | (1 << read9) | (1 << read10));
 
-	u32 RTS_only_SAVE_key_offset = (u8 *)RTS_only_SAVE_key - p_patch_start;
-	u32 RTS_only_LOAD_key_offset = (u8 *)RTS_only_LOAD_key - p_patch_start;
+	u32 RTS_only_SAVE_key_offset = (u32)RTS_only_SAVE_key - (u32)p_patch_start;
+	u32 RTS_only_LOAD_key_offset = (u32)RTS_only_LOAD_key - (u32)p_patch_start;
 
 	*(vu32 *)(patchbuffer + RTS_only_SAVE_key_offset) = RTS_only_SAVE_key_val & 0x3FF;
 	*(vu32 *)(patchbuffer + RTS_only_LOAD_key_offset) = RTS_only_LOAD_key_val & 0x3FF;
 
-	u32 copysize = p_patch_end - p_patch_start;
+	u32 copysize = (u32)p_patch_end - (u32)p_patch_start;
 
 	if (iTrimSize + copysize > 0x2000000)
 	{
@@ -1403,7 +1403,7 @@ void Patch_SpecialROM_TrimSize(void)
       }
     }
 
-      u32 copysize = p_patch_end - p_patch_start ;
+      u32 copysize = (u32)p_patch_end - (u32)p_patch_start ;
       dmaCopy((void*)p_patch_start,patchbuffer, copysize);
       if( modify_val)
       {
