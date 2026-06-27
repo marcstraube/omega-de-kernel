@@ -1,0 +1,5 @@
+# Bulk-Reformatierungen, die git blame überspringen soll.
+# Aktivieren mit:  git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# style: apply clang-format to hand-written sources
+c613aa73ea99180df05c621dd25a716c48f4db34
