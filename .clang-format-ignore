@@ -1,0 +1,12 @@
+# Third-party (FatFs) — upstream-diffbar halten
+source/ff15/*
+
+# Generierte / datenartige Header (große const-Arrays, Font-/Patch-Daten)
+source/asc126.h
+source/goomba.h
+source/HZK12.h
+source/jagoombacolor.h
+source/pocketnes.h
+source/reset_table.h
+source/saveMODE.h
+source/gba_nes_patch.h
