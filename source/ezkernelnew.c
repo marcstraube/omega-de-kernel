@@ -54,6 +54,9 @@ u16 gl_select_lang;
 u16 gl_engine_sel;
 
 u16 gl_show_Thumbnail;
+u16 gl_cover_w;      // current cover source width  (set by Load_Thumbnail)
+u16 gl_cover_h;      // current cover source height (top-down rows)
+u16 gl_cover_stride; // source row stride in pixels (BMP rounds rows up to 4 bytes)
 u16 gl_ingame_RTC_open_status;
 
 u8 __attribute__((aligned(4))) GAMECODE[4];
@@ -1662,6 +1665,13 @@ u32 Load_Thumbnail(TCHAR *pfilename_pic)
 	u32 rett;
 	u32 res;
 	TCHAR picpath[30];
+	u8 *bmp = pReadCache + COVER_SLOT_OFFSET;
+	u32 dataoff;
+	u16 bpp;
+	s32 w;
+	s32 h;
+	u32 rowbytes;
+	u32 imgbytes;
 
 	res = f_open(&gfile, pfilename_pic, FA_READ);
 	if (res == FR_OK)
@@ -1674,14 +1684,54 @@ u32 Load_Thumbnail(TCHAR *pfilename_pic)
 		sprintf(picpath, "/IMGS/%c/%c/%c%c%c%c.bmp", GAMECODE[0], GAMECODE[1], GAMECODE[0], GAMECODE[1], GAMECODE[2],
 		        GAMECODE[3]);
 		res = f_open(&gfile, picpath, FA_READ);
-		if (res == FR_OK)
+		if (res != FR_OK)
+			return THUMB_ABSENT;
+
+		// Parse the BMP header instead of assuming a fixed 120x80 image. Multi-byte
+		// fields are assembled from bytes because these offsets are not 4-aligned and
+		// the ARM7 would silently rotate an unaligned 32-bit load. The cover contract
+		// matches the official set: 16bpp, top-down rows (negative BMP height).
+		f_read(&gfile, bmp, 0x36, (UINT *)&rett);
+		if (rett < 0x36 || bmp[0] != 'B' || bmp[1] != 'M')
 		{
-			f_read(&gfile, pReadCache + 0x10000, 0x4B38, (UINT *)&rett);
 			f_close(&gfile);
-			return 1;
+			return THUMB_INVALID;
 		}
+		dataoff = ((u32)bmp[0x0A]) | ((u32)bmp[0x0B] << 8) | ((u32)bmp[0x0C] << 16) | ((u32)bmp[0x0D] << 24);
+		w = (s32)(((u32)bmp[0x12]) | ((u32)bmp[0x13] << 8) | ((u32)bmp[0x14] << 16) | ((u32)bmp[0x15] << 24));
+		h = (s32)(((u32)bmp[0x16]) | ((u32)bmp[0x17] << 8) | ((u32)bmp[0x18] << 16) | ((u32)bmp[0x19] << 24));
+		bpp = (u16)(bmp[0x1C] | (bmp[0x1D] << 8));
+		// Require top-down rows: a positive (bottom-up) height would render flipped,
+		// so reject it rather than silently mis-draw. h stays negative until checked.
+		if (bpp != 16 || h >= 0 || h < -COVER_MAX_H || dataoff < 0x36 || w < 1 || w > COVER_MAX_W)
+		{
+			f_close(&gfile);
+			return THUMB_INVALID;
+		}
+		h = -h;
+
+		// Read ONLY the pixel region (BMP rows padded up to 4 bytes) to the slot base.
+		// imgbytes is bounded by COVER_MAX_W*COVER_MAX_H*2, so the read can never
+		// overrun the slot no matter what the untrusted dataoff/file size claim.
+		rowbytes = ((u32)w * 2 + 3) & ~3u;
+		imgbytes = rowbytes * (u32)h;
+		if (imgbytes > COVER_SLOT_SIZE)
+		{
+			f_close(&gfile);
+			return THUMB_INVALID;
+		}
+		f_lseek(&gfile, dataoff);
+		f_read(&gfile, bmp, imgbytes, (UINT *)&rett);
+		f_close(&gfile);
+		if (rett < imgbytes)
+			return THUMB_INVALID;
+
+		gl_cover_w = (u16)w;
+		gl_cover_h = (u16)h;
+		gl_cover_stride = (u16)(rowbytes / 2);
+		return THUMB_OK;
 	}
-	return 0;
+	return THUMB_ABSENT;
 }
 //---------------------------------------------------------------------------------
 // Delete file
@@ -2391,12 +2441,18 @@ re_showfile:
 
 			if (updata && gl_show_Thumbnail && is_GBA && (page_num == SD_list))
 			{
-				if (haveThumbnail)
+				// Clear the whole bottom-right cover region (max size) first so a
+				// previous taller/wider cover cannot leave ghost pixels behind.
+				ClearWithBG((u16 *)gImage_SD, 240 - COVER_MAX_W, COVER_REGION_TOP, COVER_MAX_W, COVER_MAX_H, 1);
+				if (haveThumbnail == THUMB_OK)
 				{
-					DrawPic((u16 *)(pReadCache + 0x10036), 120, 80, 120, 80, 0, 0, 1); // show game pic
+					// Variable size, anchored to the bottom-right screen corner.
+					DrawPicClipStride((u16 *)(pReadCache + COVER_SLOT_OFFSET), gl_cover_stride, 240 - gl_cover_w,
+					                  160 - gl_cover_h, gl_cover_w, gl_cover_h); // show game pic
 				}
 				else
 				{
+					// THUMB_ABSENT, or THUMB_INVALID until a dedicated asset exists.
 					DrawPic((u16 *)(gImage_NOTFOUND), 120, 80, 120, 80, 0, 0, 1); // show game pic
 				}
 			}

@@ -43,12 +43,34 @@
 #define SAVER_FOLDER "/SAVER"
 #define BACKUP_ROOT "/BACKUP"
 #define BACKUP_FOLDER "/BACKUP/SAVER"
-#define BACKUP_GEN_MAX 9     // max selectable save-backup generations (single ASCII digit)
-#define BACKUP_GEN_DEFAULT 4 // applied on fresh NOR settings
+#define BACKUP_GEN_MAX 9      // max selectable save-backup generations (single ASCII digit)
+#define BACKUP_GEN_DEFAULT 4  // applied on fresh NOR settings
 #define BACKUP_SET_TAG 0x0B00 // high-byte tag: slot was written by us (vs stale/foreign values)
 
 #define DMA_COPY_MODE 0X1
 #define SET_PARAMETER_MODE 0x2
+
+// Cover preview region: bottom-right anchored, growing up/left from (240,160).
+// COVER_REGION_TOP is where the region starts: the top 4 list rows (y20..76)
+// stay full-width in thumbnail mode (long names, DIR/size, selection bar reach
+// x240), so the cover lives strictly below them, matching the stock 120x80 box.
+// The max size also bounds the pixel read: COVER_MAX_W*COVER_MAX_H*2 always fits
+// inside COVER_SLOT_SIZE, so a cover can never overrun the image slot.
+#define COVER_REGION_TOP 80
+#define COVER_MAX_W 120
+#define COVER_MAX_H (160 - COVER_REGION_TOP)
+
+// The cover image is read into pReadCache at this offset; everything below it in
+// the buffer is the room available for the pixel data.
+#define COVER_SLOT_OFFSET 0x10000
+#define COVER_SLOT_SIZE (MAX_pReadCache_size - COVER_SLOT_OFFSET)
+
+// Load_Thumbnail() result: cover absent, loaded OK, or present-but-unusable.
+// THUMB_INVALID is distinguished at load time but currently falls back to the
+// NOTFOUND graphic at draw time (a dedicated INVALID asset is a follow-up).
+#define THUMB_ABSENT 0
+#define THUMB_OK 1
+#define THUMB_INVALID 2
 
 #define gImage_Chinese_manual (void *)0x08100000
 #define gImage_English_manual (void *)0x08102648
