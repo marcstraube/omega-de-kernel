@@ -81,6 +81,51 @@ void IWRAM_CODE DrawPic(u16 *GFX, u16 x, u16 y, u16 w, u16 h, u8 isTrans, u16 tc
 			dmaCopy(GFX + (yi - y) * w, p + yi * 240 + x, w * 2);
 	}
 }
+//******************************************************************************
+// Clipped, stride-aware blit of a w*h, 16bpp source onto the screen at (x,y).
+// Rows are copied top-down straight to VRAM. Two things set it apart from
+// DrawPic: (1) the copy width is clipped to the screen, so the source may sit
+// partly off any edge without the non-transparent path overrunning a row
+// (DrawPic copies the full source width regardless of the clip); (2) src_stride
+// is independent of the drawn width, so a sub-rectangle of a wider buffer can be
+// drawn. Generic primitive: variable-size covers now, gallery/ingame later.
+void IWRAM_CODE DrawPicClipStride(const u16 *src, int src_stride, int x, int y, int w, int h)
+{
+	u16 *p = VideoBuffer;
+	int src_x = 0;
+	int src_y = 0;
+	int draw_w = w;
+	int draw_h = h;
+	int row;
+
+	if (x < 0)
+	{
+		src_x = -x;
+		draw_w -= src_x;
+		x = 0;
+	}
+	if (y < 0)
+	{
+		src_y = -y;
+		draw_h -= src_y;
+		y = 0;
+	}
+	if (x + draw_w > 240)
+		draw_w = 240 - x;
+	if (y + draw_h > 160)
+		draw_h = 160 - y;
+
+	if ((draw_w <= 0) || (draw_h <= 0))
+		return;
+
+	for (row = 0; row < draw_h; row++)
+		dmaCopy((void *)(src + (src_y + row) * src_stride + src_x), p + (y + row) * 240 + x, draw_w * 2);
+}
+//******************************************************************************
+void IWRAM_CODE DrawPicClip(const u16 *src, int x, int y, int w, int h)
+{
+	DrawPicClipStride(src, w, x, y, w, h);
+}
 //---------------------------------------------------------------------------------
 void DrawHZText12(char *str, u16 len, u16 x, u16 y, u16 c, u8 isDrawDirect)
 {
