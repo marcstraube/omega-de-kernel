@@ -74,6 +74,7 @@ u32 Setting_window2(void)
 	u8 auto_save_pos = 1;
 	u8 led_pos = 1;
 	u8 backup_pos = 1;
+	u16 led_drawn_state = 0xFFFF; // last-drawn LED state; forces a region clear on first draw and on LED toggle
 
 	u8 ModeB_pos = 3;
 
@@ -149,6 +150,13 @@ u32 Setting_window2(void)
 			DrawHZText12(msg, 0, x_offset + 15, y_offset + line_x * 2,
 			             (led_pos == 0) ? gl_color_selected : gl_color_text, 1);
 
+			if (led_open_sel != led_drawn_state)
+			{
+				// LED state changed: clear the variable region so the backup row
+				// (which moves with the LED state) leaves no ghost behind
+				ClearWithBG((u16 *)gImage_SET2, 0, y_offset + line_x * 3 - 2, 240, 160 - (y_offset + line_x * 3 - 2), 1);
+				led_drawn_state = led_open_sel;
+			}
 			if (led_open_sel == 0x1)
 			{
 				sprintf(msg, "%s", gl_Breathing_light);
@@ -191,8 +199,6 @@ u32 Setting_window2(void)
 			}
 			else
 			{
-
-				ClearWithBG((u16 *)gImage_SET2, 0, y_offset + line_x * 3, 240, 160 - (y_offset + line_x * 2), 1);
 				line_total = 4;
 			}
 
