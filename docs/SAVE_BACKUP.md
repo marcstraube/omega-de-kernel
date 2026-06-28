@@ -15,6 +15,9 @@ lost save can be recovered.
 - The live save itself stays in `/SAVER/<game>.sav` and is never modified by the
   backup — the files under `/BACKUP/SAVER/` are extra copies.
 - `/BACKUP` and `/BACKUP/SAVER` are created automatically on the first backup.
+- If a backup cannot be written (e.g. the SD card is full or failing), you see
+  **"Backup failed!"** and your existing backups are kept unchanged — a failed
+  backup never overwrites or rotates the good ones.
 
 ## Setting: number of generations
 

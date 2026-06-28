@@ -196,10 +196,11 @@ u32 Setting_window2(void)
 				line_total = 4;
 			}
 
+			u8 backup_row = (led_open_sel == 0x1) ? 5 : 3; // no LED colour sub-rows when LED is off
 			sprintf(msg, "%s", gl_lang_toggle_backup);
-			DrawHZText12(msg, 0, set_offset, y_offset + line_x * 5, gl_color_selected, 1);
-			Draw_select_icon(x_offset, y_offset + line_x * 5, (toggle_backup != 0x0));
-			ClearWithBG((u16 *)gImage_SET, x_offset + 15, y_offset + line_x * 5, 7 * 7, 13, 1);
+			DrawHZText12(msg, 0, set_offset, y_offset + line_x * backup_row, gl_color_selected, 1);
+			Draw_select_icon(x_offset, y_offset + line_x * backup_row, (toggle_backup != 0x0));
+			ClearWithBG((u16 *)gImage_SET, x_offset + 15, y_offset + line_x * backup_row, 7 * 7, 13, 1);
 			if (toggle_backup == 0x0)
 			{
 				sprintf(msg, "%s", gl_disabled);
@@ -208,7 +209,7 @@ u32 Setting_window2(void)
 			{
 				sprintf(msg, "%lu", (unsigned long)toggle_backup);
 			}
-			DrawHZText12(msg, 0, x_offset + 15, y_offset + line_x * 5,
+			DrawHZText12(msg, 0, x_offset + 15, y_offset + line_x * backup_row,
 			             (backup_pos == 0) ? gl_color_selected : gl_color_text, 1);
 
 			u32 offsety;
@@ -236,8 +237,8 @@ u32 Setting_window2(void)
 						clean_color = gl_color_MENU_btn;
 				}
 				offsety = y_offset + line * line_x;
-				if (line > 2)
-					offsety += line_x * 2; // backup row sits below the two LED colour sub-rows
+				if (line == 3)
+					offsety = y_offset + line_x * backup_row; // backup row position tracks the LED state
 				// if(line>1) offsety += line_x;
 
 				Clear(202, offsety - 2, 30, 14, clean_color, 1);

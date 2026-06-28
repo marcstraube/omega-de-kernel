@@ -1856,6 +1856,12 @@ u32 Copy_file(const TCHAR *src, const TCHAR *dst)
 	return ret;
 }
 //---------------------------------------------------------------------------------
+static void set_gen_suffix(TCHAR *path, int base_len, char suffix)
+{
+	path[base_len] = suffix;
+	path[base_len + 1] = 0;
+}
+//---------------------------------------------------------------------------------
 void Backup_savefile(const TCHAR *filename, u32 generations)
 {
 	TCHAR temp_filename[MAX_path_len];
@@ -1880,30 +1886,41 @@ void Backup_savefile(const TCHAR *filename, u32 generations)
 		return; // path too long, skip backup
 	memcpy(temp_filename_dst, temp_filename, base_len + 1);
 
-	// drop generations above the current count (e.g. after the user lowered it)
-	for (i = (s32)generations; i <= BACKUP_GEN_MAX; ++i)
+	// Copy the live save into a temp slot ('T') first, and only rotate +
+	// publish it if the copy succeeds, so a failed backup (full/broken SD)
+	// never destroys the existing backups.
+	set_gen_suffix(temp_filename, base_len, 'T');
+	if (!Copy_file(filename, temp_filename))
 	{
-		temp_filename[base_len] = '0' + i;
-		temp_filename[base_len + 1] = 0;
-		f_unlink(temp_filename);
+		f_unlink(temp_filename); // drop the partial/empty temp copy
+		ShowbootProgress(gl_backup_fail);
+		wait_btn();
+		return;
+	}
+
+	// drop generations above the current count (e.g. after the user lowered
+	// it); excess files are contiguous, so stop at the first gap.
+	for (i = (s32)generations; i < BACKUP_GEN_MAX; ++i)
+	{
+		set_gen_suffix(temp_filename_dst, base_len, '0' + i);
+		if (f_unlink(temp_filename_dst) != FR_OK)
+			break;
 	}
 
 	// rotate generations: .(N-2) -> .(N-1), ..., .0 -> .1 (oldest drops off)
 	for (i = (s32)generations - 2; i >= 0; --i)
 	{
-		temp_filename[base_len] = '0' + i;
-		temp_filename[base_len + 1] = 0;
-		temp_filename_dst[base_len] = '0' + i + 1;
-		temp_filename_dst[base_len + 1] = 0;
-
+		set_gen_suffix(temp_filename, base_len, '0' + i);
+		set_gen_suffix(temp_filename_dst, base_len, '0' + i + 1);
 		f_unlink(temp_filename_dst);
 		f_rename(temp_filename, temp_filename_dst);
 	}
 
-	// newest live save -> .0
-	temp_filename[base_len] = '0';
-	temp_filename[base_len + 1] = 0;
-	Copy_file(filename, temp_filename);
+	// publish the temp copy as the newest generation (.0)
+	set_gen_suffix(temp_filename, base_len, 'T');
+	set_gen_suffix(temp_filename_dst, base_len, '0');
+	f_unlink(temp_filename_dst);
+	f_rename(temp_filename, temp_filename_dst);
 }
 //---------------------------------------------------------------------------------
 u8 Process_savefile(u32 is_EMU, TCHAR *pfilename, u32 gamefilesize, BYTE saveMODE)
