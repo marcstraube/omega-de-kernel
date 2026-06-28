@@ -93,6 +93,7 @@ extern char *gl_SD_working;
 extern char *gl_lang_toggle_backup;
 extern char *gl_disabled;
 extern char *gl_backup_save;
+extern char *gl_backup_fail;
 
 extern char *gl_NOR_full;
 extern char *gl_save_loaded;
