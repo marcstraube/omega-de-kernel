@@ -23,9 +23,11 @@ The output is named after the project directory — e.g.
 
 ### Flashing
 
-Link the built `.gba` together with `image.bin` into the kernel-upgrade `.bin`
-using `Link_kernel_image.exe` (Windows; runs under Wine on Linux). That `.bin`
-is the OmegaDE kernel-upgrade file you flash to the cart.
+`make` also assembles the flashable kernel-upgrade image `ezkernelnew.bin`: the
+built `.gba` zero-padded to 1 MiB, with the bundled `image.bin` top firmware
+appended — the fixed layout the OmegaDE flasher and kernel expect. Flash that
+`ezkernelnew.bin` to the cart. This native step replaces the old closed-source
+`Link_kernel_image.exe` and is byte-identical to its output.
 
 ### Code quality
 

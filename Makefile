@@ -123,7 +123,26 @@ export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib)
 #---------------------------------------------------------------------------------
 HWSOURCES	:=	$(wildcard $(CURDIR)/source/*.c)
 
-.PHONY: $(BUILD) clean cppcheck
+.PHONY: all $(BUILD) clean cppcheck
+
+#---------------------------------------------------------------------------------
+# Default: build the kernel, then assemble the flashable kernel-upgrade image.
+#---------------------------------------------------------------------------------
+all: ezkernelnew.bin
+
+#---------------------------------------------------------------------------------
+# Assemble the flashable kernel-upgrade image natively, replacing the closed-source
+# Windows tool Link_kernel_image.exe. Layout (byte-identical to that tool): the
+# kernel .gba verbatim, zero-padded to 1 MiB, then the bundled top firmware
+# image.bin appended. The 1 MiB offset is the fixed NOR address the flasher and
+# kernel expect.
+#---------------------------------------------------------------------------------
+ezkernelnew.bin: $(BUILD)
+	@[ -f image.bin ] || { echo "error: image.bin (bundled top firmware) is missing"; exit 1; }
+	@echo assembling $@ ...
+	@cp $(TARGET).gba $@
+	@truncate -s 1048576 $@
+	@cat image.bin >> $@
 
 #---------------------------------------------------------------------------------
 $(BUILD):
@@ -133,7 +152,7 @@ $(BUILD):
 #---------------------------------------------------------------------------------
 clean:
 	@echo clean ...
-	@rm -fr $(BUILD) $(TARGET).elf $(TARGET).gba
+	@rm -fr $(BUILD) $(TARGET).elf $(TARGET).gba ezkernelnew.bin
 
 #---------------------------------------------------------------------------------
 # cppcheck static analysis over hand-written sources (complements GCC -fanalyzer)
