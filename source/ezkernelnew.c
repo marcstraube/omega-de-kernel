@@ -58,6 +58,7 @@ u16 gl_cover_w;      // current cover source width  (set by Load_Thumbnail)
 u16 gl_cover_h;      // current cover source height (top-down rows)
 u16 gl_cover_stride; // source row stride in pixels (BMP rounds rows up to 4 bytes)
 u16 gl_ingame_RTC_open_status;
+u32 gl_clock_dirty = 1; // ShowTime: repaint the clock once after its background is redrawn (#26)
 
 u8 __attribute__((aligned(4))) GAMECODE[4];
 
@@ -1479,6 +1480,11 @@ void CheckSwitch(void)
 //---------------------------------------------------------------------------------
 void ShowTime(u32 page_num, u32 page_mode)
 {
+	static u8 last_h = 0xFF;
+	static u8 last_m = 0xFF;
+	static u8 last_s = 0xFF;
+	static u32 last_pn = 0xFFFFFFFF;
+	static u32 last_pm = 0xFFFFFFFF;
 	u8 datetime[3];
 	char msgtime[50];
 	// get time
@@ -1486,13 +1492,6 @@ void ShowTime(u32 page_num, u32 page_mode)
 	rtc_gettime(datetime);
 	rtc_disenable();
 	delay(5);
-
-	if (page_mode == 0x1)
-		ClearWithBG((u16 *)gImage_RECENTLY, 80, 3, 80, 13, 1);
-	else if (page_num == SD_list)
-		ClearWithBG((u16 *)gImage_SD, 120, 3, 50, 13, 1);
-	else if (page_num == NOR_list)
-		ClearWithBG((u16 *)gImage_NOR, 120, 3, 50, 13, 1);
 
 	u8 HH = UNBCD(datetime[0] & 0x3F);
 	u8 MM = UNBCD(datetime[1] & 0x7F);
@@ -1503,6 +1502,26 @@ void ShowTime(u32 page_num, u32 page_mode)
 		MM = 0;
 	if (SS > 59)
 		SS = 0;
+
+	// Repaint only when the shown value changes, the page/background under the
+	// clock switched, or that background was redrawn (gl_clock_dirty). Clearing
+	// and redrawing every frame made the clear->draw flicker during the list
+	// marquee (#26); the clock only needs updating about once per second.
+	if (!gl_clock_dirty && HH == last_h && MM == last_m && SS == last_s && page_num == last_pn && page_mode == last_pm)
+		return;
+	gl_clock_dirty = 0;
+	last_h = HH;
+	last_m = MM;
+	last_s = SS;
+	last_pn = page_num;
+	last_pm = page_mode;
+
+	if (page_mode == 0x1)
+		ClearWithBG((u16 *)gImage_RECENTLY, 80, 3, 80, 13, 1);
+	else if (page_num == SD_list)
+		ClearWithBG((u16 *)gImage_SD, 120, 3, 50, 13, 1);
+	else if (page_num == NOR_list)
+		ClearWithBG((u16 *)gImage_NOR, 120, 3, 50, 13, 1);
 
 	sprintf(msgtime, "%02u:%02u:%02u", HH, MM, SS);
 	DrawHZText12(msgtime, 0, 120, 3, gl_color_text, 1);
@@ -2400,6 +2419,8 @@ re_showfile:
 			}
 			if (updata == 1)
 			{ // reshow all
+				// a full background redraw below wipes the clock
+				gl_clock_dirty = 1;
 				if (page_num == SD_list)
 				{
 					// DrawPic((u16*)gImage_SD, 0, 0, 240, 160, 0, 0, 1);
