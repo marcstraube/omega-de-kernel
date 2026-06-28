@@ -3356,6 +3356,33 @@ re_show_menu:
 			gl_rts_on = Read_SET_info(assress_v_rts);
 			gl_sleep_on = Read_SET_info(assress_v_sleep);
 			gl_cheat_on = Read_SET_info(assress_v_cheat);
+
+			// Per-game override (#5): if a record exists for this game, its saved
+			// addon/engine choices replace the globals just read. GBA-only (the
+			// addon path is unreachable for emu games), keyed by the 4-char game
+			// code already in GAMECODE. pg[] is indexed like SET_info; only the
+			// per-game slots (<= assress_engine_sel) are touched.
+			if (gl_per_game_settings)
+			{
+				char pg_key[9];
+				u16 pg[16];
+				memcpy(pg_key, GAMECODE, 4);
+				pg_key[4] = 0;
+				pg[assress_v_reset] = gl_reset_on;
+				pg[assress_v_rts] = gl_rts_on;
+				pg[assress_v_sleep] = gl_sleep_on;
+				pg[assress_v_cheat] = gl_cheat_on;
+				pg[assress_engine_sel] = gl_engine_sel;
+				if (Load_pergame_record(pg_key, pg))
+				{
+					gl_reset_on = pg[assress_v_reset];
+					gl_rts_on = pg[assress_v_rts];
+					gl_sleep_on = pg[assress_v_sleep];
+					gl_cheat_on = pg[assress_v_cheat];
+					gl_engine_sel = pg[assress_engine_sel];
+				}
+			}
+
 			if ((gl_reset_on == 1) || (gl_rts_on == 1) || (gl_sleep_on == 1) || (gl_cheat_on == 1))
 			{
 				if (gl_rts_on == 1)

@@ -49,15 +49,21 @@ static const setting_desc settings[] = {
     {"general", "ingame_rtc", assress_ingame_RTC_open_status, ST_BOOL, 1, 0},
     {"general", "per_game_settings", assress_per_game_settings, ST_BOOL, 1, 0}, // master switch (issue #5)
 
+    // Per-game (issue #5) covers only the boot-time choices that the addon boot
+    // path applies through gl_* and re-reads per launch. auto_save and the sleep/
+    // RTS hotkeys stay global: they are consumed outside that path (the save
+    // write-back runs in a later kernel session; the hotkeys are read straight
+    // from NOR by the in-game addon), so a per-game override can't reach them
+    // without risky NOR writes.
     {"addons", "reset", assress_v_reset, ST_BOOL, 0, 1},
     {"addons", "rts", assress_v_rts, ST_BOOL, 0, 1},
     {"addons", "sleep", assress_v_sleep, ST_BOOL, 0, 1},
     {"addons", "cheat", assress_v_cheat, ST_BOOL, 0, 1},
     {"addons", "engine", assress_engine_sel, ST_BOOL, 1, 1},
-    {"addons", "auto_save", assress_auto_save_sel, ST_BOOL, 0, 1},
+    {"addons", "auto_save", assress_auto_save_sel, ST_BOOL, 0, 0},
 
-    {"hotkeys", "sleep_hotkey", assress_edit_sleephotkey_0, ST_HOTKEY, 0, 1},
-    {"hotkeys", "rts_hotkey", assress_edit_rtshotkey_0, ST_HOTKEY, 0, 1},
+    {"hotkeys", "sleep_hotkey", assress_edit_sleephotkey_0, ST_HOTKEY, 0, 0},
+    {"hotkeys", "rts_hotkey", assress_edit_rtshotkey_0, ST_HOTKEY, 0, 0},
 
     {"led", "led", assress_led_open_sel, ST_BOOL, 1, 0},
     {"led", "breathing_red", assress_Breathing_R, ST_BOOL, 1, 0},
