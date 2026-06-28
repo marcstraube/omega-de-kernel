@@ -27,3 +27,7 @@ ezkernelnew.bin
 *.sym
 *.a
 *.lib
+
+# clangd IDE artefacts (machine-specific paths; run tools/gen-compile-commands.sh)
+compile_commands.json
+.cache/
