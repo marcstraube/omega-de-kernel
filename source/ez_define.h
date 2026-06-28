@@ -50,6 +50,7 @@
 #define SETTINGS_FOLDER "/SYSTEM"            // human-readable settings layer (issue #4)
 #define SETTINGS_FILE "/SYSTEM/SETTINGS.TXT" // key = value mirror of the SET_info store
 #define SETTINGS_TMP "/SYSTEM/SETTINGS.TMP"  // temp target for atomic (write-then-rename) saves
+#define GAMES_FOLDER "/SYSTEM/GAMES"          // per-game settings records (issue #5), one file per game key
 
 #define DMA_COPY_MODE 0X1
 #define SET_PARAMETER_MODE 0x2

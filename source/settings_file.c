@@ -34,7 +34,8 @@ typedef struct
 	const char *key;
 	u16 index;
 	u8 type;
-	u16 def; // fallback when NOR holds an out-of-range/uninitialised value (matches CheckSwitch)
+	u16 def;      // fallback when NOR holds an out-of-range/uninitialised value (matches CheckSwitch)
+	u8 per_game;  // 1 = overridable per game (issue #5); 0 (default) = global only
 } setting_desc;
 
 // Button code (SET_info value) -> name, matching the on-device hotkey menu order.
@@ -43,30 +44,30 @@ static const char *const button_names[10] = {"A", "B", "SELECT", "START", "RIGHT
 
 // Single source of truth for both writing and parsing the file.
 static const setting_desc settings[] = {
-    {"general", "language", assress_language, ST_LANG, 0xE1E1},
-    {"general", "show_thumbnail", assress_show_Thumbnail, ST_BOOL, 0},
-    {"general", "ingame_rtc", assress_ingame_RTC_open_status, ST_BOOL, 1},
+    {"general", "language", assress_language, ST_LANG, 0xE1E1, 0},
+    {"general", "show_thumbnail", assress_show_Thumbnail, ST_BOOL, 0, 0},
+    {"general", "ingame_rtc", assress_ingame_RTC_open_status, ST_BOOL, 1, 0},
 
-    {"addons", "reset", assress_v_reset, ST_BOOL, 0},
-    {"addons", "rts", assress_v_rts, ST_BOOL, 0},
-    {"addons", "sleep", assress_v_sleep, ST_BOOL, 0},
-    {"addons", "cheat", assress_v_cheat, ST_BOOL, 0},
-    {"addons", "engine", assress_engine_sel, ST_BOOL, 1},
-    {"addons", "auto_save", assress_auto_save_sel, ST_BOOL, 0},
+    {"addons", "reset", assress_v_reset, ST_BOOL, 0, 1},
+    {"addons", "rts", assress_v_rts, ST_BOOL, 0, 1},
+    {"addons", "sleep", assress_v_sleep, ST_BOOL, 0, 1},
+    {"addons", "cheat", assress_v_cheat, ST_BOOL, 0, 1},
+    {"addons", "engine", assress_engine_sel, ST_BOOL, 1, 1},
+    {"addons", "auto_save", assress_auto_save_sel, ST_BOOL, 0, 1},
 
-    {"hotkeys", "sleep_hotkey", assress_edit_sleephotkey_0, ST_HOTKEY, 0},
-    {"hotkeys", "rts_hotkey", assress_edit_rtshotkey_0, ST_HOTKEY, 0},
+    {"hotkeys", "sleep_hotkey", assress_edit_sleephotkey_0, ST_HOTKEY, 0, 1},
+    {"hotkeys", "rts_hotkey", assress_edit_rtshotkey_0, ST_HOTKEY, 0, 1},
 
-    {"led", "led", assress_led_open_sel, ST_BOOL, 1},
-    {"led", "breathing_red", assress_Breathing_R, ST_BOOL, 1},
-    {"led", "breathing_green", assress_Breathing_G, ST_BOOL, 1},
-    {"led", "breathing_blue", assress_Breathing_B, ST_BOOL, 1},
-    {"led", "sd_red", assress_SD_R, ST_BOOL, 0},
-    {"led", "sd_green", assress_SD_G, ST_BOOL, 0},
-    {"led", "sd_blue", assress_SD_B, ST_BOOL, 0},
+    {"led", "led", assress_led_open_sel, ST_BOOL, 1, 0},
+    {"led", "breathing_red", assress_Breathing_R, ST_BOOL, 1, 0},
+    {"led", "breathing_green", assress_Breathing_G, ST_BOOL, 1, 0},
+    {"led", "breathing_blue", assress_Breathing_B, ST_BOOL, 1, 0},
+    {"led", "sd_red", assress_SD_R, ST_BOOL, 0, 0},
+    {"led", "sd_green", assress_SD_G, ST_BOOL, 0, 0},
+    {"led", "sd_blue", assress_SD_B, ST_BOOL, 0, 0},
 
-    {"hardware", "mode_b", assress_ModeB_INIT, ST_MODEB, 2},
-    {"hardware", "backup_count", assress_backup, ST_BACKUP, BACKUP_GEN_DEFAULT},
+    {"hardware", "mode_b", assress_ModeB_INIT, ST_MODEB, 2, 0},
+    {"hardware", "backup_count", assress_backup, ST_BACKUP, BACKUP_GEN_DEFAULT, 0},
 };
 #define SETTINGS_COUNT (sizeof(settings) / sizeof(settings[0]))
 
@@ -268,32 +269,27 @@ static void report_save_error(void)
 }
 
 //---------------------------------------------------------------------------------
-void Write_settings_file(u16 *SET_info_buffer)
+// Write the descriptor entries selected by per_game_only to `final` via a temp
+// file + atomic rename: a power loss or card removal mid-write can never corrupt
+// the canonical file (it stays the old complete version until the rename
+// succeeds). per_game_only: 0 = whole table (global SETTINGS.TXT), 1 = only the
+// per-game-overridable entries (a per-game record). Returns 1 on success, 0 on
+// any FatFS failure (temp discarded, the existing file left intact). The caller
+// must ensure the target folder exists. Shared by the global and per-game writers.
+static int write_descriptor_table(const char *tmp, const char *final, const char *const *header,
+                                  u32 header_count, int per_game_only, const u16 *buf)
 {
-	static const char *const header[] = {
-	    "# EZ-FLASH Omega DE kernel - settings\r\n",
-	    "# Edit a value, save, then reboot to apply.\r\n",
-	    "# Booleans use on/off. Hotkeys: up to three buttons joined by +.\r\n",
-	    "# Buttons: A B SELECT START RIGHT LEFT UP DOWN R L\r\n",
-	    "# language: english | chinese.  mode_b: rumble | ram | link.\r\n",
-	};
 	char line[160];
 	char val[48];
 	const char *cur_section = "";
 	int ok = 1;
 
-	f_mkdir(SETTINGS_FOLDER); // harmless if it already exists
-
-	// Write to a temp file, then atomically rename: a power loss or card removal
-	// mid-write can never corrupt the canonical SETTINGS.TXT (it stays the old
-	// complete version until the rename succeeds).
-	if (f_open(&set_fil, SETTINGS_TMP, FA_WRITE | FA_CREATE_ALWAYS) != FR_OK)
+	if (f_open(&set_fil, tmp, FA_WRITE | FA_CREATE_ALWAYS) != FR_OK)
 	{
-		report_save_error();
-		return;
+		return 0;
 	}
 
-	for (u32 h = 0; h < sizeof(header) / sizeof(header[0]); h++)
+	for (u32 h = 0; h < header_count; h++)
 	{
 		if (f_puts(header[h], &set_fil) < 0)
 		{
@@ -303,6 +299,10 @@ void Write_settings_file(u16 *SET_info_buffer)
 
 	for (u32 i = 0; i < SETTINGS_COUNT; i++)
 	{
+		if (per_game_only && !settings[i].per_game)
+		{
+			continue;
+		}
 		if (strcmp(settings[i].section, cur_section) != 0)
 		{
 			cur_section = settings[i].section;
@@ -312,7 +312,7 @@ void Write_settings_file(u16 *SET_info_buffer)
 				ok = 0;
 			}
 		}
-		format_value(val, SET_info_buffer, &settings[i]);
+		format_value(val, buf, &settings[i]);
 		sprintf(line, "%s = %s\r\n", settings[i].key, val);
 		if (f_puts(line, &set_fil) < 0)
 		{
@@ -327,23 +327,40 @@ void Write_settings_file(u16 *SET_info_buffer)
 
 	if (!ok) // partial write (card full/removed) -> discard temp, keep old file
 	{
-		f_unlink(SETTINGS_TMP);
-		report_save_error();
-		return;
+		f_unlink(tmp);
+		return 0;
 	}
 
 	// Atomic swap. f_rename refuses an existing target, so drop the old file
 	// first; a power loss in this tiny window just makes the next boot re-seed.
-	f_unlink(SETTINGS_FILE);
-	if (f_rename(SETTINGS_TMP, SETTINGS_FILE) != FR_OK)
+	f_unlink(final);
+	return f_rename(tmp, final) == FR_OK;
+}
+
+//---------------------------------------------------------------------------------
+void Write_settings_file(u16 *SET_info_buffer)
+{
+	static const char *const header[] = {
+	    "# EZ-FLASH Omega DE kernel - settings\r\n",
+	    "# Edit a value, save, then reboot to apply.\r\n",
+	    "# Booleans use on/off. Hotkeys: up to three buttons joined by +.\r\n",
+	    "# Buttons: A B SELECT START RIGHT LEFT UP DOWN R L\r\n",
+	    "# language: english | chinese.  mode_b: rumble | ram | link.\r\n",
+	};
+
+	f_mkdir(SETTINGS_FOLDER); // harmless if it already exists
+	if (!write_descriptor_table(SETTINGS_TMP, SETTINGS_FILE, header, sizeof(header) / sizeof(header[0]), 0,
+	                            SET_info_buffer))
 	{
 		report_save_error();
 	}
 }
 
 //---------------------------------------------------------------------------------
-// Apply a single "key = value" line to buf. Returns 1 if it changed a value.
-static int apply_line(char *line, u16 *buf)
+// Apply a single "key = value" line to buf. When per_game_only is set, only
+// per-game-overridable keys are accepted (a per-game record can never touch a
+// global-only setting, even if hand-edited). Returns 1 if it changed a value.
+static int apply_line(char *line, u16 *buf, int per_game_only)
 {
 	char *hash = strchr(line, '#'); // strip inline comment
 	if (hash)
@@ -380,6 +397,10 @@ static int apply_line(char *line, u16 *buf)
 		{
 			continue;
 		}
+		if (per_game_only && !settings[i].per_game)
+		{
+			return 0; // a per-game record may not carry a global-only key
+		}
 		u16 parsed[3];
 		int slots = parse_value(&settings[i], val, parsed);
 		int changed = 0;
@@ -414,7 +435,7 @@ void Load_settings_file(void)
 	char line[160];
 	while (f_gets(line, sizeof line, &set_fil))
 	{
-		changed |= apply_line(line, work_buf);
+		changed |= apply_line(line, work_buf, 0);
 	}
 	f_close(&set_fil);
 
@@ -424,4 +445,71 @@ void Load_settings_file(void)
 		CheckSwitch();                  // reload the gl_* runtime copies
 		CheckLanguage();                // language may have changed -> reload strings
 	}
+}
+
+//---------------------------------------------------------------------------------
+// Per-game settings records (issue #5): one "/SYSTEM/GAMES/<key>.TXT" per game,
+// where <key> is the stable Game_lookup_key() identity (4-char GBA code or 8 hex
+// GB/GBC CRC). A record carries only the per-game-overridable subset of the
+// settings table and overrides the global boot options for that game alone.
+
+// Build "/SYSTEM/GAMES/<key>.<ext>" into out (out must hold >= 40 bytes).
+static void pergame_path(char *out, const char *key, const char *ext)
+{
+	sprintf(out, "%s/%s.%s", GAMES_FOLDER, key, ext);
+}
+
+//---------------------------------------------------------------------------------
+// Persist the per-game subset of buf as this game's record. Returns 1 on success.
+int Write_pergame_record(const char *key, const u16 *buf)
+{
+	static const char *const header[] = {
+	    "# EZ-FLASH Omega DE kernel - per-game settings (issue #5)\r\n",
+	    "# Overrides the global boot options for this game only.\r\n",
+	    "# Booleans use on/off. Hotkeys: up to three buttons joined by +.\r\n",
+	};
+	char tmp[40];
+	char final[40];
+
+	f_mkdir(SETTINGS_FOLDER); // parent of GAMES_FOLDER; harmless if it already exists
+	f_mkdir(GAMES_FOLDER);
+	pergame_path(tmp, key, "TMP");
+	pergame_path(final, key, "TXT");
+	if (!write_descriptor_table(tmp, final, header, sizeof(header) / sizeof(header[0]), 1, buf))
+	{
+		report_save_error();
+		return 0;
+	}
+	return 1;
+}
+
+//---------------------------------------------------------------------------------
+// Overlay this game's saved overrides onto buf (per-game slots only; the caller
+// seeds buf from the current global state first). Returns 1 if a record existed.
+int Load_pergame_record(const char *key, u16 *buf)
+{
+	char path[40];
+	pergame_path(path, key, "TXT");
+	if (f_open(&set_fil, path, FA_READ) != FR_OK)
+	{
+		return 0;
+	}
+
+	char line[160];
+	while (f_gets(line, sizeof line, &set_fil))
+	{
+		apply_line(line, buf, 1); // per_game_only: ignore any stray global-only keys
+	}
+	f_close(&set_fil);
+	return 1;
+}
+
+//---------------------------------------------------------------------------------
+// Remove this game's record, reverting it to the global defaults ("reset to
+// global" in the per-game editor). A missing record is not an error.
+void Delete_pergame_record(const char *key)
+{
+	char path[40];
+	pergame_path(path, key, "TXT");
+	f_unlink(path);
 }
