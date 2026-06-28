@@ -1680,10 +1680,11 @@ void Sort_file(u32 game_total_SD)
 	}
 }
 //---------------------------------------------------------------------------------
-// Fills `code` (NUL-terminated) with the cover lookup key for the open ROM:
-// the 4-char GBA game code, or 8 hex CRC digits for GB/GBC. Returns 1 on
-// success, 0 if the header could not be read. Operates on the global gfile.
-static u32 Cover_lookup_key(u32 ftype, char *code)
+// Fills `code` (NUL-terminated) with the stable per-game identity key for the
+// open ROM: the 4-char GBA game code, or 8 hex CRC digits for GB/GBC. Returns 1
+// on success, 0 if the header could not be read. Operates on the global gfile.
+// Used both for cover lookup and for keying per-game settings records.
+static u32 Game_lookup_key(u32 ftype, char *code)
 {
 	u32 rett;
 	if (ftype == 0) // GBA: 4-char game code at ROM header offset 0xAC
@@ -1733,7 +1734,7 @@ u32 Load_Thumbnail(TCHAR *pfilename_pic, u32 ftype)
 	res = f_open(&gfile, pfilename_pic, FA_READ);
 	if (res != FR_OK)
 		return THUMB_ABSENT;
-	res = Cover_lookup_key(ftype, code);
+	res = Game_lookup_key(ftype, code);
 	f_close(&gfile);
 	if (!res)
 		return THUMB_ABSENT;
