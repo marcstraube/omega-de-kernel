@@ -477,11 +477,7 @@ u32 Setting_window2(void)
 					{
 						save_set2_info();
 						Set_OK = 0;
-						gl_toggle_backup = Read_SET_info(assress_backup);
-						if (gl_toggle_backup > BACKUP_GEN_MAX)
-						{
-							gl_toggle_backup = BACKUP_GEN_DEFAULT;
-						}
+						gl_toggle_backup = toggle_backup;
 						break;
 					}
 					}
@@ -511,7 +507,7 @@ void save_set2_info(void)
 	SET_info_buffer[assress_SD_R] = SD_R;
 	SET_info_buffer[assress_SD_G] = SD_G;
 	SET_info_buffer[assress_SD_B] = SD_B;
-	SET_info_buffer[assress_backup] = toggle_backup;
+	SET_info_buffer[assress_backup] = BACKUP_SET_TAG | toggle_backup;
 
 	// save to nor
 	Save_SET_info(SET_info_buffer, 0x200);

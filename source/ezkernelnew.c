@@ -1459,8 +1459,12 @@ void CheckSwitch(void)
 	{
 		gl_SD_B = 0x0;
 	}
-	gl_toggle_backup = Read_SET_info(assress_backup);
-	if (gl_toggle_backup > BACKUP_GEN_MAX)
+	u16 raw_backup = Read_SET_info(assress_backup);
+	if ((raw_backup & 0xFF00) == BACKUP_SET_TAG && (raw_backup & 0x00FF) <= BACKUP_GEN_MAX)
+	{
+		gl_toggle_backup = raw_backup & 0x00FF;
+	}
+	else
 	{
 		gl_toggle_backup = BACKUP_GEN_DEFAULT;
 	}
@@ -1864,6 +1868,8 @@ void Backup_savefile(const TCHAR *filename, u32 generations)
 	if (generations > BACKUP_GEN_MAX)
 		generations = BACKUP_GEN_MAX;
 
+	ShowbootProgress(gl_backup_save);
+
 	// FatFs f_mkdir creates only a single level, so make the parent first
 	f_mkdir(BACKUP_ROOT);
 	f_mkdir(BACKUP_FOLDER);
@@ -1873,6 +1879,14 @@ void Backup_savefile(const TCHAR *filename, u32 generations)
 	if (base_len < 0 || (u32)base_len >= sizeof(temp_filename) - 2)
 		return; // path too long, skip backup
 	memcpy(temp_filename_dst, temp_filename, base_len + 1);
+
+	// drop generations above the current count (e.g. after the user lowered it)
+	for (i = (s32)generations; i <= BACKUP_GEN_MAX; ++i)
+	{
+		temp_filename[base_len] = '0' + i;
+		temp_filename[base_len + 1] = 0;
+		f_unlink(temp_filename);
+	}
 
 	// rotate generations: .(N-2) -> .(N-1), ..., .0 -> .1 (oldest drops off)
 	for (i = (s32)generations - 2; i >= 0; --i)
