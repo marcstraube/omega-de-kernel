@@ -47,6 +47,7 @@ static const setting_desc settings[] = {
     {"general", "language", assress_language, ST_LANG, 0xE1E1, 0},
     {"general", "show_thumbnail", assress_show_Thumbnail, ST_BOOL, 0, 0},
     {"general", "ingame_rtc", assress_ingame_RTC_open_status, ST_BOOL, 1, 0},
+    {"general", "per_game_settings", assress_per_game_settings, ST_BOOL, 1, 0}, // master switch (issue #5)
 
     {"addons", "reset", assress_v_reset, ST_BOOL, 0, 1},
     {"addons", "rts", assress_v_rts, ST_BOOL, 0, 1},

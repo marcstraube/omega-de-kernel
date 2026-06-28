@@ -77,6 +77,7 @@ u16 gl_cheat_on;
 u16 gl_auto_save_sel;
 u16 gl_ModeB_init;
 u16 gl_toggle_backup;
+u16 gl_per_game_settings; // master switch for the per-game override layer (issue #5), default on
 
 u16 gl_led_open_sel;
 u16 gl_Breathing_R;
@@ -1472,6 +1473,12 @@ void CheckSwitch(void)
 	else
 	{
 		gl_toggle_backup = BACKUP_GEN_DEFAULT;
+	}
+
+	gl_per_game_settings = Read_SET_info(assress_per_game_settings);
+	if ((gl_per_game_settings != 0x0) && (gl_per_game_settings != 0x1))
+	{
+		gl_per_game_settings = 0x1; // default on; fresh NOR (0xFFFF) lands here too
 	}
 
 	u16 led_status = (gl_led_open_sel << 7) | (gl_Breathing_R << 5) | (gl_Breathing_G << 4) | (gl_Breathing_B << 3) |

@@ -130,6 +130,7 @@
 #define assress_SD_G 21
 #define assress_SD_B 22
 #define assress_backup 23
+#define assress_per_game_settings 24 // master switch for the per-game override layer (issue #5)
 
 #define assress_saveMODE 64
 #define assress_max 65
