@@ -16,6 +16,8 @@ Thumbs.db
 build/
 *.elf
 *.gba
+# linked kernel-upgrade image (Link_kernel_image output; image.bin stays tracked)
+ezkernelnew.bin
 
 # Intermediate files (Object files, Linker output)
 *.o
