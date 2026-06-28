@@ -1,0 +1,11 @@
+EZ-FLASH Omega Definitive Edition kernel — community fork
+
+Copyright (c) 2026 Marc Straube <email@marcstraube.de> (this fork's changes)
+
+Based on the EZ-FLASH Omega Definitive Edition kernel by EZ-FLASH
+(https://github.com/ez-flash/omega-de-kernel), licensed under Apache-2.0.
+
+Portions of the save-backup feature are ported from the SimpleLight DE fork
+by Veikkos and contributors (https://github.com/Sterophonick/omega-de-kernel).
+
+Licensed under the Apache License, Version 2.0; see LICENSE.
