@@ -20,6 +20,7 @@
 #include "NORflash_OP.h"
 #include "lang.h"
 #include "GBApatch.h"
+#include "settings_file.h"
 #include "showcht.h"
 #include "helpwindow.h"
 
@@ -2262,6 +2263,10 @@ int main(void)
 		DrawHZText12(gl_Loading, 0, 2, 33, gl_color_cheat_black, 1);
 	}
 	VBlankIntrWait();
+
+	// SD is mounted now: reconcile the human-readable settings file with NOR
+	// (seed it when missing, apply hand-edits otherwise). See settings_file.c.
+	Load_settings_file();
 
 	Check_save_flag();
 

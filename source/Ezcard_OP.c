@@ -12,6 +12,7 @@
 #include "ezkernel.h"
 #include "draw.h"
 #include "Ezcard_OP.h"
+#include "settings_file.h"
 
 extern u32 FAT_table_buffer[FAT_table_size / 4] EWRAM_BSS;
 
@@ -368,6 +369,10 @@ void IWRAM_CODE Save_NOR_info(u16 *NOR_info_buffer, u32 buffersize)
 // --------------------------------------------------------------------
 void IWRAM_CODE Save_SET_info(u16 *SET_info_buffer, u32 buffersize)
 {
+	// Mirror to the human-readable SD file first, so a power loss between the
+	// two writes leaves SD (the edit surface) ahead of NOR; the boot reconcile
+	// then heals NOR toward the latest intent rather than reverting it.
+	Write_settings_file(SET_info_buffer);
 	Save_info(SET_info_offset, SET_info_buffer, buffersize);
 }
 // --------------------------------------------------------------------

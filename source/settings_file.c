@@ -1,0 +1,427 @@
+#include <gba_base.h>
+#include <gba_systemcalls.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+
+#include "ff.h"
+#include "ez_define.h"
+#include "draw.h"
+#include "Ezcard_OP.h"
+#include "lang.h"
+#include "settings_file.h"
+
+// These live in ezkernelnew.c; no shared header declares them.
+extern void CheckSwitch(void);
+extern void CheckLanguage(void);
+
+//---------------------------------------------------------------------------------
+// Value kinds. Most settings are simple on/off flags; the rest need bespoke
+// formatting/parsing so the file stays human-readable.
+enum
+{
+	ST_BOOL,   // on / off
+	ST_LANG,   // english / chinese  <-> 0xE1E1 / 0xE2E2
+	ST_MODEB,  // rumble / ram / link  <-> 0 / 1 / 2  (NOR-standalone hardware mode)
+	ST_BACKUP, // 0..BACKUP_GEN_MAX, stored tagged in SET_info
+	ST_HOTKEY  // three button names, e.g. "L + R + SELECT" (three SET_info slots)
+};
+
+typedef struct
+{
+	const char *section; // grouping header, only a reading aid in the file
+	const char *key;
+	u16 index;
+	u8 type;
+	u16 def; // fallback when NOR holds an out-of-range/uninitialised value (matches CheckSwitch)
+} setting_desc;
+
+// Button code (SET_info value) -> name, matching the on-device hotkey menu order.
+static const char *const button_names[10] = {"A", "B", "SELECT", "START", "RIGHT",
+                                              "LEFT", "UP", "DOWN", "R", "L"};
+
+// Single source of truth for both writing and parsing the file.
+static const setting_desc settings[] = {
+    {"general", "language", assress_language, ST_LANG, 0xE1E1},
+    {"general", "show_thumbnail", assress_show_Thumbnail, ST_BOOL, 0},
+    {"general", "ingame_rtc", assress_ingame_RTC_open_status, ST_BOOL, 1},
+
+    {"addons", "reset", assress_v_reset, ST_BOOL, 0},
+    {"addons", "rts", assress_v_rts, ST_BOOL, 0},
+    {"addons", "sleep", assress_v_sleep, ST_BOOL, 0},
+    {"addons", "cheat", assress_v_cheat, ST_BOOL, 0},
+    {"addons", "engine", assress_engine_sel, ST_BOOL, 1},
+    {"addons", "auto_save", assress_auto_save_sel, ST_BOOL, 0},
+
+    {"hotkeys", "sleep_hotkey", assress_edit_sleephotkey_0, ST_HOTKEY, 0},
+    {"hotkeys", "rts_hotkey", assress_edit_rtshotkey_0, ST_HOTKEY, 0},
+
+    {"led", "led", assress_led_open_sel, ST_BOOL, 1},
+    {"led", "breathing_red", assress_Breathing_R, ST_BOOL, 1},
+    {"led", "breathing_green", assress_Breathing_G, ST_BOOL, 1},
+    {"led", "breathing_blue", assress_Breathing_B, ST_BOOL, 1},
+    {"led", "sd_red", assress_SD_R, ST_BOOL, 0},
+    {"led", "sd_green", assress_SD_G, ST_BOOL, 0},
+    {"led", "sd_blue", assress_SD_B, ST_BOOL, 0},
+
+    {"hardware", "mode_b", assress_ModeB_INIT, ST_MODEB, 2},
+    {"hardware", "backup_count", assress_backup, ST_BACKUP, BACKUP_GEN_DEFAULT},
+};
+#define SETTINGS_COUNT (sizeof(settings) / sizeof(settings[0]))
+
+// Module-private file handle and scratch buffer (kept off the small stack).
+static FIL set_fil;
+static u16 work_buf[0x200];
+
+//---------------------------------------------------------------------------------
+// Trim leading/trailing whitespace in place, returning a pointer into s.
+static char *trim(char *s)
+{
+	while (*s == ' ' || *s == '\t')
+	{
+		s++;
+	}
+	char *end = s + strlen(s);
+	while (end > s && (end[-1] == ' ' || end[-1] == '\t' || end[-1] == '\r' || end[-1] == '\n'))
+	{
+		*--end = '\0';
+	}
+	return s;
+}
+
+// Resolve a button name (case-insensitive) to its SET_info code, or -1.
+static int button_code(const char *token)
+{
+	for (int i = 0; i < 10; i++)
+	{
+		const char *a = token;
+		const char *b = button_names[i];
+		while (*a && *b && toupper((unsigned char)*a) == *b)
+		{
+			a++;
+			b++;
+		}
+		if (*a == '\0' && *b == '\0')
+		{
+			return i;
+		}
+	}
+	return -1;
+}
+
+// Clamp a raw button code to a printable name (the menu does the same on read).
+static const char *button_name(u16 code)
+{
+	return button_names[code <= 9 ? code : 9];
+}
+
+// Clamp a raw SET_info value to a valid one, falling back to the per-setting
+// default when NOR holds garbage (e.g. an uninitialised 0xFFFF slot). This keeps
+// the seeded file and the reconcile aligned with the kernel's CheckSwitch
+// defaults instead of mis-reading garbage as "on"/enabled.
+static u16 canonical(const setting_desc *d, u16 v)
+{
+	switch (d->type)
+	{
+	case ST_BOOL:
+		return (v == 0 || v == 1) ? v : d->def;
+	case ST_LANG:
+		return (v == 0xE1E1 || v == 0xE2E2) ? v : d->def;
+	case ST_MODEB:
+		return (v <= 2) ? v : d->def;
+	case ST_BACKUP:
+		return ((v & 0xFF00) == BACKUP_SET_TAG && (v & 0x00FF) <= BACKUP_GEN_MAX) ? v
+		                                                                          : (u16)(BACKUP_SET_TAG | d->def);
+	case ST_HOTKEY:
+	default:
+		return v; // no CheckSwitch default; button_name() clamps on display
+	}
+}
+
+//---------------------------------------------------------------------------------
+// Render one setting's value as text into out.
+static void format_value(char *out, const u16 *buf, const setting_desc *d)
+{
+	u16 v = canonical(d, buf[d->index]);
+	switch (d->type)
+	{
+	case ST_BOOL:
+		strcpy(out, v ? "on" : "off"); // canonical() guarantees 0/1
+		break;
+	case ST_LANG:
+		strcpy(out, v == 0xE2E2 ? "chinese" : "english");
+		break;
+	case ST_MODEB:
+		strcpy(out, v == 0 ? "rumble" : (v == 1 ? "ram" : "link"));
+		break;
+	case ST_BACKUP:
+		sprintf(out, "%u", (unsigned)(v & 0x00FF)); // canonical() ensured tag + range
+		break;
+	case ST_HOTKEY:
+		sprintf(out, "%s + %s + %s", button_name(buf[d->index]), button_name(buf[d->index + 1]),
+		        button_name(buf[d->index + 2]));
+		break;
+	}
+}
+
+//---------------------------------------------------------------------------------
+// Parse a (lower-cased) value string for setting d into out[0..2].
+// Returns the number of SET_info slots produced (1, or 3 for hotkeys), or 0 if
+// the value is invalid (caller then keeps the existing NOR value).
+static int parse_value(const setting_desc *d, char *val, u16 *out)
+{
+	switch (d->type)
+	{
+	case ST_BOOL:
+		if (!strcmp(val, "on") || !strcmp(val, "1"))
+		{
+			out[0] = 1;
+			return 1;
+		}
+		if (!strcmp(val, "off") || !strcmp(val, "0"))
+		{
+			out[0] = 0;
+			return 1;
+		}
+		return 0;
+	case ST_LANG:
+		if (!strcmp(val, "english"))
+		{
+			out[0] = 0xE1E1;
+			return 1;
+		}
+		if (!strcmp(val, "chinese"))
+		{
+			out[0] = 0xE2E2;
+			return 1;
+		}
+		return 0;
+	case ST_MODEB:
+		if (!strcmp(val, "rumble"))
+		{
+			out[0] = 0;
+			return 1;
+		}
+		if (!strcmp(val, "ram"))
+		{
+			out[0] = 1;
+			return 1;
+		}
+		if (!strcmp(val, "link"))
+		{
+			out[0] = 2;
+			return 1;
+		}
+		return 0;
+	case ST_BACKUP:
+	{
+		char *rest;
+		long n = strtol(val, &rest, 10);
+		if (rest == val || *rest != '\0' || n < 0 || n > BACKUP_GEN_MAX)
+		{
+			return 0; // rest == val: empty/non-numeric value, keep the NOR value
+		}
+		out[0] = (u16)(BACKUP_SET_TAG | (n & 0x00FF));
+		return 1;
+	}
+	case ST_HOTKEY:
+	{
+		char *p = val;
+		int count = 0;
+		while (count < 3)
+		{
+			char *plus = strchr(p, '+');
+			if (plus)
+			{
+				*plus = '\0';
+			}
+			int code = button_code(trim(p));
+			if (code < 0)
+			{
+				return 0;
+			}
+			out[count++] = (u16)code;
+			if (!plus)
+			{
+				return count == 3 ? 3 : 0; // fewer than three buttons -> reject
+			}
+			p = plus + 1;
+		}
+		return 0; // three buttons consumed but a fourth follows -> reject
+	}
+	}
+	return 0;
+}
+
+//---------------------------------------------------------------------------------
+// Show the write-failure message and hold it briefly. On boot the screen would
+// otherwise be redrawn within a frame; in the menu this is the only feedback the
+// user gets. Saves succeed silently; failures are rare, so the pause is free.
+static void report_save_error(void)
+{
+	ShowbootProgress(gl_settings_fail);
+	for (int i = 0; i < 90; i++) // ~1.5 s at 60 Hz
+	{
+		VBlankIntrWait();
+	}
+}
+
+//---------------------------------------------------------------------------------
+void Write_settings_file(u16 *SET_info_buffer)
+{
+	static const char *const header[] = {
+	    "# EZ-FLASH Omega DE kernel - settings\r\n",
+	    "# Edit a value, save, then reboot to apply.\r\n",
+	    "# Booleans use on/off. Hotkeys: up to three buttons joined by +.\r\n",
+	    "# Buttons: A B SELECT START RIGHT LEFT UP DOWN R L\r\n",
+	    "# language: english | chinese.  mode_b: rumble | ram | link.\r\n",
+	};
+	char line[160];
+	char val[48];
+	const char *cur_section = "";
+	int ok = 1;
+
+	f_mkdir(SETTINGS_FOLDER); // harmless if it already exists
+
+	// Write to a temp file, then atomically rename: a power loss or card removal
+	// mid-write can never corrupt the canonical SETTINGS.TXT (it stays the old
+	// complete version until the rename succeeds).
+	if (f_open(&set_fil, SETTINGS_TMP, FA_WRITE | FA_CREATE_ALWAYS) != FR_OK)
+	{
+		report_save_error();
+		return;
+	}
+
+	for (u32 h = 0; h < sizeof(header) / sizeof(header[0]); h++)
+	{
+		if (f_puts(header[h], &set_fil) < 0)
+		{
+			ok = 0;
+		}
+	}
+
+	for (u32 i = 0; i < SETTINGS_COUNT; i++)
+	{
+		if (strcmp(settings[i].section, cur_section) != 0)
+		{
+			cur_section = settings[i].section;
+			sprintf(line, "\r\n[%s]\r\n", cur_section);
+			if (f_puts(line, &set_fil) < 0)
+			{
+				ok = 0;
+			}
+		}
+		format_value(val, SET_info_buffer, &settings[i]);
+		sprintf(line, "%s = %s\r\n", settings[i].key, val);
+		if (f_puts(line, &set_fil) < 0)
+		{
+			ok = 0;
+		}
+	}
+
+	if (f_close(&set_fil) != FR_OK)
+	{
+		ok = 0;
+	}
+
+	if (!ok) // partial write (card full/removed) -> discard temp, keep old file
+	{
+		f_unlink(SETTINGS_TMP);
+		report_save_error();
+		return;
+	}
+
+	// Atomic swap. f_rename refuses an existing target, so drop the old file
+	// first; a power loss in this tiny window just makes the next boot re-seed.
+	f_unlink(SETTINGS_FILE);
+	if (f_rename(SETTINGS_TMP, SETTINGS_FILE) != FR_OK)
+	{
+		report_save_error();
+	}
+}
+
+//---------------------------------------------------------------------------------
+// Apply a single "key = value" line to buf. Returns 1 if it changed a value.
+static int apply_line(char *line, u16 *buf)
+{
+	char *hash = strchr(line, '#'); // strip inline comment
+	if (hash)
+	{
+		*hash = '\0';
+	}
+
+	char *body = trim(line);
+	if (*body == '\0' || *body == '[')
+	{
+		return 0;
+	}
+
+	char *eq = strchr(body, '=');
+	if (!eq)
+	{
+		return 0;
+	}
+	*eq = '\0';
+	char *key = trim(body);
+	char *val = trim(eq + 1);
+	for (char *c = key; *c; c++) // keys are case-insensitive, like the values
+	{
+		*c = (char)tolower((unsigned char)*c);
+	}
+	for (char *c = val; *c; c++)
+	{
+		*c = (char)tolower((unsigned char)*c);
+	}
+
+	for (u32 i = 0; i < SETTINGS_COUNT; i++)
+	{
+		if (strcmp(key, settings[i].key) != 0)
+		{
+			continue;
+		}
+		u16 parsed[3];
+		int slots = parse_value(&settings[i], val, parsed);
+		int changed = 0;
+		for (int s = 0; s < slots; s++)
+		{
+			if (buf[settings[i].index + s] != parsed[s])
+			{
+				buf[settings[i].index + s] = parsed[s];
+				changed = 1;
+			}
+		}
+		return changed;
+	}
+	return 0;
+}
+
+//---------------------------------------------------------------------------------
+void Load_settings_file(void)
+{
+	for (u32 i = 0; i < 0x200; i++)
+	{
+		work_buf[i] = Read_SET_info(i);
+	}
+
+	if (f_open(&set_fil, SETTINGS_FILE, FA_READ) != FR_OK)
+	{
+		Write_settings_file(work_buf); // seed the file from the current NOR state
+		return;
+	}
+
+	int changed = 0;
+	char line[160];
+	while (f_gets(line, sizeof line, &set_fil))
+	{
+		changed |= apply_line(line, work_buf);
+	}
+	f_close(&set_fil);
+
+	if (changed)
+	{
+		Save_SET_info(work_buf, 0x200); // reconcile: rewrites SD (canonical) + NOR
+		CheckSwitch();                  // reload the gl_* runtime copies
+		CheckLanguage();                // language may have changed -> reload strings
+	}
+}

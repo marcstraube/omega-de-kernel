@@ -95,6 +95,8 @@ extern char *gl_disabled;
 extern char *gl_backup_save;
 extern char *gl_backup_fail;
 
+extern char *gl_settings_fail;
+
 extern char *gl_NOR_full;
 extern char *gl_save_loaded;
 extern char *gl_save_saved;

@@ -94,6 +94,7 @@ char *gl_lang_toggle_backup;
 char *gl_disabled;
 char *gl_backup_save;
 char *gl_backup_fail;
+char *gl_settings_fail;
 
 char *gl_NOR_full;
 char *gl_save_loaded;
@@ -195,6 +196,7 @@ const char zh_lang_toggle_backup[] = "保存备份";
 const char zh_disabled[] = "已禁用";
 const char zh_backup_save[] = "备份存档...";
 const char zh_backup_fail[] = "备份失败";
+const char zh_settings_fail[] = "设置保存失败!";
 
 const char zh_NOR_full[] = "NOR空间不足";
 const char zh_save_loaded[] = "存档已加载到FRAM";
@@ -299,6 +301,7 @@ const char en_lang_toggle_backup[] = "   BACKUP";
 const char en_disabled[] = "Disabled";
 const char en_backup_save[] = "Backing up save...";
 const char en_backup_fail[] = "Backup failed!";
+const char en_settings_fail[] = "Settings save failed!";
 
 const char en_NOR_full[] = "NOR space not enough  ";
 const char en_save_loaded[] = "Sav have been loaded";
@@ -407,6 +410,7 @@ void LoadChinese(void)
 	gl_disabled = (char *)zh_disabled;
 	gl_backup_save = (char *)zh_backup_save;
 	gl_backup_fail = (char *)zh_backup_fail;
+	gl_settings_fail = (char *)zh_settings_fail;
 
 	gl_NOR_full = (char *)zh_NOR_full;
 	gl_save_loaded = (char *)zh_save_loaded;
@@ -510,6 +514,7 @@ void LoadEnglish(void)
 	gl_disabled = (char *)en_disabled;
 	gl_backup_save = (char *)en_backup_save;
 	gl_backup_fail = (char *)en_backup_fail;
+	gl_settings_fail = (char *)en_settings_fail;
 
 	gl_NOR_full = (char *)en_NOR_full;
 	gl_save_loaded = (char *)en_save_loaded;

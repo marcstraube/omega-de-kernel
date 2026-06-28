@@ -47,6 +47,10 @@
 #define BACKUP_GEN_DEFAULT 4  // applied on fresh NOR settings
 #define BACKUP_SET_TAG 0x0B00 // high-byte tag: slot was written by us (vs stale/foreign values)
 
+#define SETTINGS_FOLDER "/SYSTEM"            // human-readable settings layer (issue #4)
+#define SETTINGS_FILE "/SYSTEM/SETTINGS.TXT" // key = value mirror of the SET_info store
+#define SETTINGS_TMP "/SYSTEM/SETTINGS.TMP"  // temp target for atomic (write-then-rename) saves
+
 #define DMA_COPY_MODE 0X1
 #define SET_PARAMETER_MODE 0x2
 
