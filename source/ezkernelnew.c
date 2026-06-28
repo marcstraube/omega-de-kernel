@@ -1660,11 +1660,48 @@ void Sort_file(u32 game_total_SD)
 	}
 }
 //---------------------------------------------------------------------------------
-u32 Load_Thumbnail(TCHAR *pfilename_pic)
+// Fills `code` (NUL-terminated) with the cover lookup key for the open ROM:
+// the 4-char GBA game code, or 8 hex CRC digits for GB/GBC. Returns 1 on
+// success, 0 if the header could not be read. Operates on the global gfile.
+static u32 Cover_lookup_key(u32 ftype, char *code)
+{
+	u32 rett;
+	if (ftype == 0) // GBA: 4-char game code at ROM header offset 0xAC
+	{
+		f_lseek(&gfile, 0xAC);
+		f_read(&gfile, GAMECODE, 4, (UINT *)&rett);
+		if (rett < 4)
+			return 0;
+		memcpy(code, GAMECODE, 4);
+		code[4] = 0;
+		return 1;
+	}
+	if (ftype == 1 || ftype == 2) // GBC / GB: no game code, derive a key from the header
+	{
+		// Cover key = CRC32(header[0x134..0x14F] ++ filesize_le32) as 8 uppercase hex
+		// digits. The ROM manager must compute the cover file name identically.
+		u8 keybuf[32];
+		u32 fsize = (u32)f_size(&gfile);
+		f_lseek(&gfile, 0x134);
+		f_read(&gfile, keybuf, 28, (UINT *)&rett);
+		if (rett < 28)
+			return 0;
+		keybuf[28] = (u8)fsize;
+		keybuf[29] = (u8)(fsize >> 8);
+		keybuf[30] = (u8)(fsize >> 16);
+		keybuf[31] = (u8)(fsize >> 24);
+		sprintf(code, "%08lX", (unsigned long)crc32(keybuf, 32));
+		return 1;
+	}
+	return 0;
+}
+//---------------------------------------------------------------------------------
+u32 Load_Thumbnail(TCHAR *pfilename_pic, u32 ftype)
 {
 	u32 rett;
 	u32 res;
 	TCHAR picpath[30];
+	char code[9];
 	u8 *bmp = pReadCache + COVER_SLOT_OFFSET;
 	u32 dataoff;
 	u16 bpp;
@@ -1674,64 +1711,61 @@ u32 Load_Thumbnail(TCHAR *pfilename_pic)
 	u32 imgbytes;
 
 	res = f_open(&gfile, pfilename_pic, FA_READ);
-	if (res == FR_OK)
+	if (res != FR_OK)
+		return THUMB_ABSENT;
+	res = Cover_lookup_key(ftype, code);
+	f_close(&gfile);
+	if (!res)
+		return THUMB_ABSENT;
+
+	sprintf(picpath, "/IMGS/%c/%c/%s.bmp", code[0], code[1], code);
+	res = f_open(&gfile, picpath, FA_READ);
+	if (res != FR_OK)
+		return THUMB_ABSENT;
+
+	// Parse the BMP header instead of assuming a fixed 120x80 image. Multi-byte
+	// fields are assembled from bytes because these offsets are not 4-aligned and
+	// the ARM7 would silently rotate an unaligned 32-bit load. The cover contract
+	// matches the official set: 16bpp, top-down rows (negative BMP height).
+	f_read(&gfile, bmp, 0x36, (UINT *)&rett);
+	if (rett < 0x36 || bmp[0] != 'B' || bmp[1] != 'M')
 	{
-		f_lseek(&gfile, 0xAC);
-		f_read(&gfile, GAMECODE, 4, (UINT *)&rett);
 		f_close(&gfile);
-
-		memset(picpath, 00, 30);
-		sprintf(picpath, "/IMGS/%c/%c/%c%c%c%c.bmp", GAMECODE[0], GAMECODE[1], GAMECODE[0], GAMECODE[1], GAMECODE[2],
-		        GAMECODE[3]);
-		res = f_open(&gfile, picpath, FA_READ);
-		if (res != FR_OK)
-			return THUMB_ABSENT;
-
-		// Parse the BMP header instead of assuming a fixed 120x80 image. Multi-byte
-		// fields are assembled from bytes because these offsets are not 4-aligned and
-		// the ARM7 would silently rotate an unaligned 32-bit load. The cover contract
-		// matches the official set: 16bpp, top-down rows (negative BMP height).
-		f_read(&gfile, bmp, 0x36, (UINT *)&rett);
-		if (rett < 0x36 || bmp[0] != 'B' || bmp[1] != 'M')
-		{
-			f_close(&gfile);
-			return THUMB_INVALID;
-		}
-		dataoff = ((u32)bmp[0x0A]) | ((u32)bmp[0x0B] << 8) | ((u32)bmp[0x0C] << 16) | ((u32)bmp[0x0D] << 24);
-		w = (s32)(((u32)bmp[0x12]) | ((u32)bmp[0x13] << 8) | ((u32)bmp[0x14] << 16) | ((u32)bmp[0x15] << 24));
-		h = (s32)(((u32)bmp[0x16]) | ((u32)bmp[0x17] << 8) | ((u32)bmp[0x18] << 16) | ((u32)bmp[0x19] << 24));
-		bpp = (u16)(bmp[0x1C] | (bmp[0x1D] << 8));
-		// Require top-down rows: a positive (bottom-up) height would render flipped,
-		// so reject it rather than silently mis-draw. h stays negative until checked.
-		if (bpp != 16 || h >= 0 || h < -COVER_MAX_H || dataoff < 0x36 || w < 1 || w > COVER_MAX_W)
-		{
-			f_close(&gfile);
-			return THUMB_INVALID;
-		}
-		h = -h;
-
-		// Read ONLY the pixel region (BMP rows padded up to 4 bytes) to the slot base.
-		// imgbytes is bounded by COVER_MAX_W*COVER_MAX_H*2, so the read can never
-		// overrun the slot no matter what the untrusted dataoff/file size claim.
-		rowbytes = ((u32)w * 2 + 3) & ~3u;
-		imgbytes = rowbytes * (u32)h;
-		if (imgbytes > COVER_SLOT_SIZE)
-		{
-			f_close(&gfile);
-			return THUMB_INVALID;
-		}
-		f_lseek(&gfile, dataoff);
-		f_read(&gfile, bmp, imgbytes, (UINT *)&rett);
-		f_close(&gfile);
-		if (rett < imgbytes)
-			return THUMB_INVALID;
-
-		gl_cover_w = (u16)w;
-		gl_cover_h = (u16)h;
-		gl_cover_stride = (u16)(rowbytes / 2);
-		return THUMB_OK;
+		return THUMB_INVALID;
 	}
-	return THUMB_ABSENT;
+	dataoff = ((u32)bmp[0x0A]) | ((u32)bmp[0x0B] << 8) | ((u32)bmp[0x0C] << 16) | ((u32)bmp[0x0D] << 24);
+	w = (s32)(((u32)bmp[0x12]) | ((u32)bmp[0x13] << 8) | ((u32)bmp[0x14] << 16) | ((u32)bmp[0x15] << 24));
+	h = (s32)(((u32)bmp[0x16]) | ((u32)bmp[0x17] << 8) | ((u32)bmp[0x18] << 16) | ((u32)bmp[0x19] << 24));
+	bpp = (u16)(bmp[0x1C] | (bmp[0x1D] << 8));
+	// Require top-down rows: a positive (bottom-up) height would render flipped,
+	// so reject it rather than silently mis-draw. h stays negative until checked.
+	if (bpp != 16 || h >= 0 || h < -COVER_MAX_H || dataoff < 0x36 || w < 1 || w > COVER_MAX_W)
+	{
+		f_close(&gfile);
+		return THUMB_INVALID;
+	}
+	h = -h;
+
+	// Read ONLY the pixel region (BMP rows padded up to 4 bytes) to the slot base.
+	// imgbytes is bounded by COVER_MAX_W*COVER_MAX_H*2, so the read can never
+	// overrun the slot no matter what the untrusted dataoff/file size claim.
+	rowbytes = ((u32)w * 2 + 3) & ~3u;
+	imgbytes = rowbytes * (u32)h;
+	if (imgbytes > COVER_SLOT_SIZE)
+	{
+		f_close(&gfile);
+		return THUMB_INVALID;
+	}
+	f_lseek(&gfile, dataoff);
+	f_read(&gfile, bmp, imgbytes, (UINT *)&rett);
+	f_close(&gfile);
+	if (rett < imgbytes)
+		return THUMB_INVALID;
+
+	gl_cover_w = (u16)w;
+	gl_cover_h = (u16)h;
+	gl_cover_stride = (u16)(rowbytes / 2);
+	return THUMB_OK;
 }
 //---------------------------------------------------------------------------------
 // Delete file
@@ -2294,8 +2328,8 @@ refind_file:
 	continue_MENU = 0;
 
 	u32 haveThumbnail;
-	u32 is_GBA_old = 0;
-	u32 is_GBA;
+	u32 has_cover_old = 0;
+	u32 has_cover;
 
 	u32 play_re;
 	play_re = 0xBB;
@@ -2330,7 +2364,7 @@ re_showfile:
 			shift++;
 
 			haveThumbnail = 0;
-			is_GBA = 0;
+			has_cover = 0;
 
 			if (updata && gl_show_Thumbnail)
 			{
@@ -2347,22 +2381,22 @@ re_showfile:
 					pfilename_pic = pNorFS[show_offset + file_select].filename;
 				}
 
-				u32 strlengba = strlen(pfilename_pic);
-				if (!strcasecmp(&(pfilename_pic[strlengba - 3]), "gba"))
+				u32 ftype = Check_file_type(pfilename_pic);
+				if (ftype == 0 || ftype == 1 || ftype == 2) // GBA / GBC / GB carry cover art
 				{
-					is_GBA = 1;
-					haveThumbnail = Load_Thumbnail(pfilename_pic);
+					has_cover = 1;
+					haveThumbnail = Load_Thumbnail(pfilename_pic, ftype);
 					short_filename = 1;
 				}
 				else
 				{
-					if ((is_GBA_old == 1) && (is_GBA == 0))
+					if ((has_cover_old == 1) && (has_cover == 0))
 					{
 						updata = 1;
 					}
 				}
 
-				is_GBA_old = is_GBA;
+				has_cover_old = has_cover;
 			}
 			if (updata == 1)
 			{ // reshow all
@@ -2372,7 +2406,7 @@ re_showfile:
 					ClearWithBG((u16 *)gImage_SD, 0, 0, 90, 20, 1);          //
 					ClearWithBG((u16 *)gImage_SD, 185 + 6, 3, 6 * 3, 16, 1); // Show_game_num
 					ClearWithBG((u16 *)gImage_SD, 0, 20, 240, 160 - 20, 1);
-					Show_ICON_filename_SD(show_offset, file_select, gl_show_Thumbnail && is_GBA);
+					Show_ICON_filename_SD(show_offset, file_select, gl_show_Thumbnail && has_cover);
 				}
 				else if (page_num == SET_win) // set windows
 				{
@@ -2433,13 +2467,13 @@ re_showfile:
 				}
 				else
 				{
-					Refresh_filename(show_offset, file_select, updata, gl_show_Thumbnail && is_GBA);
+					Refresh_filename(show_offset, file_select, updata, gl_show_Thumbnail && has_cover);
 					ClearWithBG((u16 *)gImage_SD, 185, 0, 30, 18, 1);
 				}
 				Show_game_num(file_select + show_offset + 1, page_num);
 			}
 
-			if (updata && gl_show_Thumbnail && is_GBA && (page_num == SD_list))
+			if (updata && gl_show_Thumbnail && has_cover && (page_num == SD_list))
 			{
 				// Clear the whole bottom-right cover region (max size) first so a
 				// previous taller/wider cover cannot leave ghost pixels behind.
