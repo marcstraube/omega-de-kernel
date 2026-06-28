@@ -45,6 +45,7 @@
 #define BACKUP_FOLDER "/BACKUP/SAVER"
 #define BACKUP_GEN_MAX 9     // max selectable save-backup generations (single ASCII digit)
 #define BACKUP_GEN_DEFAULT 4 // applied on fresh NOR settings
+#define BACKUP_SET_TAG 0x0B00 // high-byte tag: slot was written by us (vs stale/foreign values)
 
 #define DMA_COPY_MODE 0X1
 #define SET_PARAMETER_MODE 0x2

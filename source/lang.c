@@ -92,6 +92,7 @@ char *gl_Breathing_light;
 char *gl_SD_working;
 char *gl_lang_toggle_backup;
 char *gl_disabled;
+char *gl_backup_save;
 
 char *gl_NOR_full;
 char *gl_save_loaded;
@@ -191,6 +192,7 @@ const char zh_Breathing_light[] = "   呼吸灯";
 const char zh_SD_working[] = " SD工作灯";
 const char zh_lang_toggle_backup[] = "保存备份";
 const char zh_disabled[] = "已禁用";
+const char zh_backup_save[] = "备份存档...";
 
 const char zh_NOR_full[] = "NOR空间不足";
 const char zh_save_loaded[] = "存档已加载到FRAM";
@@ -293,6 +295,7 @@ const char en_Breathing_light[] = "BREATHING";
 const char en_SD_working[] = "   SD LED";
 const char en_lang_toggle_backup[] = "   BACKUP";
 const char en_disabled[] = "Disabled";
+const char en_backup_save[] = "Backing up save...";
 
 const char en_NOR_full[] = "NOR space not enough  ";
 const char en_save_loaded[] = "Sav have been loaded";
@@ -399,6 +402,7 @@ void LoadChinese(void)
 	gl_SD_working = (char *)zh_SD_working;
 	gl_lang_toggle_backup = (char *)zh_lang_toggle_backup;
 	gl_disabled = (char *)zh_disabled;
+	gl_backup_save = (char *)zh_backup_save;
 
 	gl_NOR_full = (char *)zh_NOR_full;
 	gl_save_loaded = (char *)zh_save_loaded;
@@ -500,6 +504,7 @@ void LoadEnglish(void)
 	gl_SD_working = (char *)en_SD_working;
 	gl_lang_toggle_backup = (char *)en_lang_toggle_backup;
 	gl_disabled = (char *)en_disabled;
+	gl_backup_save = (char *)en_backup_save;
 
 	gl_NOR_full = (char *)en_NOR_full;
 	gl_save_loaded = (char *)en_save_loaded;
