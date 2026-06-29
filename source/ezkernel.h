@@ -64,6 +64,7 @@ extern u16 gl_color_btn_clean;
 
 u32 Setting_window(void);
 u32 Setting_window2(void);
+void Pergame_settings_window(const char *key); // per-game settings editor (#5)
 
 void delay(u32 R0);
 u32 LoadRTSfile(TCHAR *filename);

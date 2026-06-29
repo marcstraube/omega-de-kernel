@@ -460,10 +460,36 @@ void Load_settings_file(void)
 // GB/GBC CRC). A record carries only the per-game-overridable subset of the
 // settings table and overrides the global boot options for that game alone.
 
-// Build "/SYSTEM/GAMES/<key>.<ext>" into out (out must hold >= 40 bytes).
+// A per-game key must be a non-empty run of ASCII alphanumerics. The game code
+// is read straight from the (untrusted) cartridge header, so this stops a crafted
+// code containing '/', '\\' or ".." from escaping /SYSTEM/GAMES/ when it is
+// concatenated into a FatFS path below.
+static int pergame_key_valid(const char *key)
+{
+	if (key == NULL)
+	{
+		return 0;
+	}
+	int len = 0;
+	for (const char *p = key; *p != '\0'; p++)
+	{
+		unsigned char c = (unsigned char)*p;
+		if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')))
+		{
+			return 0;
+		}
+		len++;
+	}
+	return len >= 2 && len <= 8; // 2 for the /<c0>/<c1>/ split; 8 = longest key (GB/GBC CRC), bounds the path
+}
+
+// Build "/SYSTEM/GAMES/<c0>/<c1>/<key>.<ext>" into out (out must hold >= 40 bytes).
+// The two subfolders (by the first two key characters) mirror the cover-art
+// layout (/IMGS/<c0>/<c1>/...) so no single directory fills up on a large
+// collection the way one flat folder would.
 static void pergame_path(char *out, const char *key, const char *ext)
 {
-	sprintf(out, "%s/%s.%s", GAMES_FOLDER, key, ext);
+	sprintf(out, "%s/%c/%c/%s.%s", GAMES_FOLDER, key[0], key[1], key, ext);
 }
 
 //---------------------------------------------------------------------------------
@@ -473,13 +499,24 @@ int Write_pergame_record(const char *key, const u16 *buf)
 	static const char *const header[] = {
 	    "# EZ-FLASH Omega DE kernel - per-game settings (issue #5)\r\n",
 	    "# Overrides the global boot options for this game only.\r\n",
-	    "# Booleans use on/off. Hotkeys: up to three buttons joined by +.\r\n",
+	    "# Booleans use on/off.\r\n",
 	};
 	char tmp[40];
 	char final[40];
 
-	f_mkdir(SETTINGS_FOLDER); // parent of GAMES_FOLDER; harmless if it already exists
+	if (!pergame_key_valid(key))
+	{
+		return 0;
+	}
+	// Create the folder chain /SYSTEM/GAMES/<c0>/<c1>. FatFS only creates the final
+	// component, so make each level; every f_mkdir is harmless if it already exists.
+	char sub[24];
+	f_mkdir(SETTINGS_FOLDER);
 	f_mkdir(GAMES_FOLDER);
+	sprintf(sub, "%s/%c", GAMES_FOLDER, key[0]);
+	f_mkdir(sub);
+	sprintf(sub, "%s/%c/%c", GAMES_FOLDER, key[0], key[1]);
+	f_mkdir(sub);
 	pergame_path(tmp, key, "TMP");
 	pergame_path(final, key, "TXT");
 	if (!write_descriptor_table(tmp, final, header, sizeof(header) / sizeof(header[0]), 1, buf))
@@ -495,6 +532,10 @@ int Write_pergame_record(const char *key, const u16 *buf)
 // seeds buf from the current global state first). Returns 1 if a record existed.
 int Load_pergame_record(const char *key, u16 *buf)
 {
+	if (!pergame_key_valid(key))
+	{
+		return 0;
+	}
 	char path[40];
 	pergame_path(path, key, "TXT");
 	if (f_open(&set_fil, path, FA_READ) != FR_OK)
@@ -516,6 +557,10 @@ int Load_pergame_record(const char *key, u16 *buf)
 // global" in the per-game editor). A missing record is not an error.
 void Delete_pergame_record(const char *key)
 {
+	if (!pergame_key_valid(key))
+	{
+		return;
+	}
 	char path[40];
 	pergame_path(path, key, "TXT");
 	f_unlink(path);

@@ -1,6 +1,7 @@
 #include <gba_systemcalls.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <gba_base.h>
 #include <gba_input.h>
 
@@ -15,6 +16,7 @@ u16 auto_save_sel;
 u16 ModeB_INIT;
 u16 led_open_sel;
 u16 toggle_backup;
+u16 per_game_set; // mirror of gl_per_game_settings while editing (issue #5)
 
 u16 Breathing_R;
 u16 Breathing_G;
@@ -27,6 +29,7 @@ u16 SD_B;
 extern u16 gl_auto_save_sel;
 extern u16 gl_ModeB_init;
 extern u16 gl_toggle_backup;
+extern u16 gl_per_game_settings;
 
 extern u16 gl_led_open_sel;
 extern u16 gl_Breathing_R;
@@ -74,6 +77,7 @@ u32 Setting_window2(void)
 	u8 auto_save_pos = 1;
 	u8 led_pos = 1;
 	u8 backup_pos = 1;
+	u8 per_game_pos = 1;
 	u16 led_drawn_state = 0xFFFF; // last-drawn LED state; forces a region clear on first draw and on LED toggle
 
 	u8 ModeB_pos = 3;
@@ -108,6 +112,7 @@ u32 Setting_window2(void)
 	SD_R = gl_SD_R;
 	SD_G = gl_SD_G;
 	SD_B = gl_SD_B;
+	per_game_set = gl_per_game_settings;
 
 	while (1)
 	{
@@ -195,11 +200,11 @@ u32 Setting_window2(void)
 				sprintf(msg, "%s", "B");
 				DrawHZText12(msg, 0, x_offset + 5 * 6 + 5 * 6 + 15 + 15 + 15, y_offset + line_x * 4,
 				             (led_pos == 7) ? gl_color_selected : gl_color_text, 1);
-				line_total = 4;
+				line_total = 5; // + per-game master switch row (#5)
 			}
 			else
 			{
-				line_total = 4;
+				line_total = 5; // + per-game master switch row (#5)
 			}
 
 			u8 backup_row = (led_open_sel == 0x1) ? 5 : 3; // no LED colour sub-rows when LED is off
@@ -218,6 +223,23 @@ u32 Setting_window2(void)
 			DrawHZText12(msg, 0, x_offset + 15, y_offset + line_x * backup_row,
 			             (backup_pos == 0) ? gl_color_selected : gl_color_text, 1);
 
+			// Per-game settings master switch (#5): an extra toggle row just below
+			// backup. The label is a static blue header (like the other rows); the
+			// checkbox sits right after it, its x following the label width so it
+			// works in both languages (GBK is 2 bytes/char, ~12px, == 2*6). Which
+			// sub-item is active (checkbox vs the Set button) is shown by the Set
+			// button highlight on the right.
+			u8 pergame_row = backup_row + 1;
+			u32 pg_box_x = set_offset + strlen(gl_game_settings) * 6 + 6;
+			DrawHZText12(gl_game_settings, 0, set_offset, y_offset + line_x * pergame_row, gl_color_selected, 1);
+			Draw_select_icon(pg_box_x, y_offset + line_x * pergame_row, (per_game_set == 0x1));
+			// State label beside the checkbox; it is the selectable item, so it turns
+			// blue when the checkbox (not the Set button) is the active sub-item.
+			// Clear first: "Enabled"/"Disabled" differ in width, otherwise a ghost remains.
+			ClearWithBG((u16 *)gImage_SET2, pg_box_x + 15, y_offset + line_x * pergame_row, 8 * 6, 13, 1);
+			DrawHZText12(per_game_set ? gl_enabled : gl_disabled, 0, pg_box_x + 15, y_offset + line_x * pergame_row,
+			             (per_game_pos == 0) ? gl_color_selected : gl_color_text, 1);
+
 			u32 offsety;
 
 			for (line = 0; line < line_total; line++)
@@ -232,6 +254,8 @@ u32 Setting_window2(void)
 						clean_color = gl_color_btn_clean;
 					else if ((line == select) && (3 == select) && (backup_pos == 1))
 						clean_color = gl_color_btn_clean;
+					else if ((line == select) && (4 == select) && (per_game_pos == 1))
+						clean_color = gl_color_btn_clean;
 					else
 						clean_color = gl_color_MENU_btn;
 				}
@@ -245,6 +269,8 @@ u32 Setting_window2(void)
 				offsety = y_offset + line * line_x;
 				if (line == 3)
 					offsety = y_offset + line_x * backup_row; // backup row position tracks the LED state
+				else if (line == 4)
+					offsety = y_offset + line_x * (backup_row + 1); // per-game row sits just below backup
 				// if(line>1) offsety += line_x;
 
 				Clear(202, offsety - 2, 30, 14, clean_color, 1);
@@ -362,6 +388,10 @@ u32 Setting_window2(void)
 				{
 					backup_pos = 1;
 				}
+				if (select == 4)
+				{
+					per_game_pos = 1;
+				}
 				re_show = 1;
 			}
 			else if (keys & KEY_LEFT)
@@ -388,6 +418,10 @@ u32 Setting_window2(void)
 				else if (select == 3)
 				{
 					backup_pos = 0;
+				}
+				else if (select == 4)
+				{
+					per_game_pos = 0;
 				}
 				re_show = 1;
 			}
@@ -489,6 +523,22 @@ u32 Setting_window2(void)
 					}
 					}
 				}
+				else if (select == 4)
+				{
+					switch (per_game_pos)
+					{
+					case 0:
+						per_game_set = !per_game_set;
+						break;
+					case 1:
+					{
+						save_set2_info();
+						Set_OK = 0;
+						gl_per_game_settings = per_game_set; // take effect now (menu line shows/hides)
+						break;
+					}
+					}
+				}
 				re_show = 1;
 			}
 			break;
@@ -515,6 +565,7 @@ void save_set2_info(void)
 	SET_info_buffer[assress_SD_G] = SD_G;
 	SET_info_buffer[assress_SD_B] = SD_B;
 	SET_info_buffer[assress_backup] = BACKUP_SET_TAG | toggle_backup;
+	SET_info_buffer[assress_per_game_settings] = per_game_set;
 
 	// save to nor
 	Save_SET_info(SET_info_buffer, 0x200);

@@ -50,6 +50,8 @@ char *gl_loading_game;
 
 char *gl_engine;
 char *gl_use_engine;
+char *gl_game_settings;
+char *gl_reset_global;
 
 char *gl_recently_play;
 
@@ -92,6 +94,7 @@ char *gl_Breathing_light;
 char *gl_SD_working;
 char *gl_lang_toggle_backup;
 char *gl_disabled;
+char *gl_enabled;
 char *gl_backup_save;
 char *gl_backup_fail;
 char *gl_settings_fail;
@@ -154,6 +157,8 @@ const char zh_loading_game[] = "加载游戏";
 
 const char zh_engine[] = "     引擎";
 const char zh_use_engine[] = "快速补丁引擎";
+const char zh_game_settings[] = "游戏设置";
+const char zh_reset_global[] = "恢复全局";
 
 const char zh_recently_play[] = "最近游戏列表";
 
@@ -194,6 +199,7 @@ const char zh_Breathing_light[] = "   呼吸灯";
 const char zh_SD_working[] = " SD工作灯";
 const char zh_lang_toggle_backup[] = "保存备份";
 const char zh_disabled[] = "已禁用";
+const char zh_enabled[] = "已启用";
 const char zh_backup_save[] = "备份存档...";
 const char zh_backup_fail[] = "备份失败";
 const char zh_settings_fail[] = "设置保存失败!";
@@ -260,6 +266,8 @@ const char en_loading_game[] = "LOADING GAME";
 
 const char en_engine[] = "   ENGINE";
 const char en_use_engine[] = "FAST PATCH ENGINE";
+const char en_game_settings[] = "GAME SETTINGS";
+const char en_reset_global[] = "RESET TO GLOBAL";
 
 const char en_recently_play[] = "RECENT PLAYED";
 
@@ -298,7 +306,8 @@ const char en_led_open[] = "ENABLE LED";
 const char en_Breathing_light[] = "BREATHING";
 const char en_SD_working[] = "   SD LED";
 const char en_lang_toggle_backup[] = "   BACKUP";
-const char en_disabled[] = "Disabled";
+const char en_disabled[] = "DISABLED";
+const char en_enabled[] = "ENABLED";
 const char en_backup_save[] = "Backing up save...";
 const char en_backup_fail[] = "Backup failed!";
 const char en_settings_fail[] = "Settings save failed!";
@@ -367,6 +376,8 @@ void LoadChinese(void)
 	gl_loading_game = (char *)zh_loading_game;
 	gl_engine = (char *)zh_engine;
 	gl_use_engine = (char *)zh_use_engine;
+	gl_game_settings = (char *)zh_game_settings;
+	gl_reset_global = (char *)zh_reset_global;
 
 	gl_recently_play = (char *)zh_recently_play;
 
@@ -408,6 +419,7 @@ void LoadChinese(void)
 	gl_SD_working = (char *)zh_SD_working;
 	gl_lang_toggle_backup = (char *)zh_lang_toggle_backup;
 	gl_disabled = (char *)zh_disabled;
+	gl_enabled = (char *)zh_enabled;
 	gl_backup_save = (char *)zh_backup_save;
 	gl_backup_fail = (char *)zh_backup_fail;
 	gl_settings_fail = (char *)zh_settings_fail;
@@ -472,6 +484,8 @@ void LoadEnglish(void)
 
 	gl_engine = (char *)en_engine;
 	gl_use_engine = (char *)en_use_engine;
+	gl_game_settings = (char *)en_game_settings;
+	gl_reset_global = (char *)en_reset_global;
 
 	gl_recently_play = (char *)en_recently_play;
 
@@ -512,6 +526,7 @@ void LoadEnglish(void)
 	gl_SD_working = (char *)en_SD_working;
 	gl_lang_toggle_backup = (char *)en_lang_toggle_backup;
 	gl_disabled = (char *)en_disabled;
+	gl_enabled = (char *)en_enabled;
 	gl_backup_save = (char *)en_backup_save;
 	gl_backup_fail = (char *)en_backup_fail;
 	gl_settings_fail = (char *)en_settings_fail;

@@ -51,6 +51,9 @@ extern char *gl_loading_game;
 extern char *gl_engine;
 extern char *gl_use_engine;
 
+extern char *gl_game_settings; // per-game settings editor: menu line + title (#5)
+extern char *gl_reset_global;  // per-game settings editor: revert to global action (#5)
+
 extern char *gl_recently_play;
 
 extern char *gl_START_help;
@@ -92,6 +95,7 @@ extern char *gl_SD_working;
 
 extern char *gl_lang_toggle_backup;
 extern char *gl_disabled;
+extern char *gl_enabled;
 extern char *gl_backup_save;
 extern char *gl_backup_fail;
 

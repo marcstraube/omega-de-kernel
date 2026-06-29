@@ -19,8 +19,8 @@ void Load_settings_file(void);
 
 // Per-game settings records (issue #5). A record overrides the global boot
 // options for one game, keyed by its stable Game_lookup_key() identity (4-char
-// GBA code or 8 hex GB/GBC CRC). Each holds only the per-game-overridable subset
-// (addons, engine, auto-save, sleep/RTS hotkeys).
+// GBA code or 8 hex GB/GBC CRC). Each holds only the per-game-overridable subset:
+// the addon toggles reset, rts, sleep, cheat, and engine.
 
 // Persist the per-game subset of `buf` to this game's record. Returns 1 on success.
 int Write_pergame_record(const char *key, const u16 *buf);

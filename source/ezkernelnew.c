@@ -695,8 +695,9 @@ void Show_MENU(u32 menu_select, PAGE_NUM page, u32 havecht, u32 Save_num, u32 is
 
 	for (line = 0; line < linemax; line++)
 	{
-		if (line == menu_select)
-		{
+		if (line == menu_select && !(line == 5 && havecht && gl_cheat_on == 0))
+		{ // the greyed, non-navigable cheat line can hold the selection index when
+		  // the per-game line shadows row 5 -- never paint that row as selected
 			name_color = gl_color_selected;
 		}
 		else if (line == 1)
@@ -772,6 +773,17 @@ void Show_MENU(u32 menu_select, PAGE_NUM page, u32 havecht, u32 Save_num, u32 is
 				}
 			}
 		}
+	}
+
+	// Per-game settings (#5): an extra navigable line drawn just below the normal
+	// menu entries, for GBA games when the master switch is on. Drawn at row
+	// `linemax` so it never overlaps a greyed-out cheat line; its index matches
+	// MENU_max in SD_list_MENU (5, or 6 when a selectable cheat line is present).
+	if (page != NOR_list && !is_menu && gl_per_game_settings)
+	{
+		u32 pg_index = 5 + ((gl_cheat_on == 1 && havecht) ? 1 : 0);
+		name_color = (menu_select == pg_index) ? gl_color_selected : gl_color_text;
+		DrawHZText12(gl_game_settings, 32, 60, y_offset + linemax * 14, name_color, 1);
 	}
 }
 //------------------------------------------------------------------
@@ -3130,6 +3142,10 @@ u8 SD_list_MENU(u32 show_offset, u32 file_select, u32 play_re)
 		old_Save_num = Check_mde_file(pfilename);
 		Save_num = old_Save_num;
 		MENU_max = 4 + ((gl_cheat_on == 1) ? ((havecht > 0) ? 1 : 0) : 0);
+		if (gl_per_game_settings)
+		{
+			MENU_max += 1; // extra "Game settings" line (#5), the new last index
+		}
 	}
 
 re_show_menu:
@@ -3221,7 +3237,29 @@ re_show_menu:
 		}
 		else if (keysdown & KEY_A)
 		{
-			if (MENU_line == 1)
+			if (gl_per_game_settings && !is_EMU && MENU_line == MENU_max)
+			{ // per-game settings editor (#5): the extra last line
+				char code[9];
+				f_chdir(currentpath);
+				if (f_open(&gfile, pfilename, FA_READ) == FR_OK)
+				{
+					u32 okkey = Game_lookup_key(0, code); // GBA 4-char code
+					f_close(&gfile);
+					if (okkey)
+					{
+						DrawPic((u16 *)gImage_SET, 0, 0, 240, 160, 0, 0, 1);
+						Pergame_settings_window(code);
+					}
+				}
+				gl_cheat_count = 0;
+				if (play_re != 0xBB)
+				{
+					strncpy(currentpath, currentpath_temp, 256);
+				}
+				f_chdir(currentpath);
+				return 0; // back to the game list (which the caller repaints)
+			}
+			else if (MENU_line == 1)
 			{ // check switch
 				if ((gl_reset_on | gl_rts_on | gl_sleep_on | gl_cheat_on) == 0)
 				{
@@ -3356,6 +3394,11 @@ re_show_menu:
 			gl_rts_on = Read_SET_info(assress_v_rts);
 			gl_sleep_on = Read_SET_info(assress_v_sleep);
 			gl_cheat_on = Read_SET_info(assress_v_cheat);
+			gl_engine_sel = Read_SET_info(assress_engine_sel);
+			if ((gl_engine_sel != 0) && (gl_engine_sel != 1))
+			{
+				gl_engine_sel = 1; // re-read fresh per boot so an override never leaks into the next game
+			}
 
 			// Per-game override (#5): if a record exists for this game, its saved
 			// addon/engine choices replace the globals just read. GBA-only (the
@@ -3365,7 +3408,7 @@ re_show_menu:
 			if (gl_per_game_settings)
 			{
 				char pg_key[9];
-				u16 pg[16];
+				u16 pg[16] = {0};
 				memcpy(pg_key, GAMECODE, 4);
 				pg_key[4] = 0;
 				pg[assress_v_reset] = gl_reset_on;
