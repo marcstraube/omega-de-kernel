@@ -275,6 +275,86 @@ void ShowbootProgress(char *str)
 	DrawHZText12(str, 0, (240 - str_len * 6) / 2, 160 - 15, gl_color_text, 1);
 }
 //---------------------------------------------------------------------------------
+// Nearest-neighbour scale of a src_w*src_h, 16bpp top-down source (row stride
+// src_stride px) to fit inside the box (box_x,box_y,box_w,box_h) on screen,
+// preserving aspect ratio: the image is scaled by the larger factor that still
+// fits, centered, and the leftover margin (letter-/pillarbox) is filled with bg.
+// Writes straight to VRAM -- the cover slot in pReadCache stays untouched, so the
+// source may live there (the slot sits above this function's scratch buffers).
+// Foundation shared by the fullscreen cover mode (#7) and the configurable
+// preview size (#8); a generic box keeps it reusable for both.
+//
+// A precomputed column map turns the inner loop into a table lookup; the row map
+// is one division per output row. Both scratch buffers are bounded by the 240px
+// screen width and live in EWRAM so the slot (0x10000) is never aliased.
+static u16 scale_colmap[240] EWRAM_BSS; // src column for each output column
+static u16 scale_line[240] EWRAM_BSS;   // one assembled output row, then DMA'd out
+void IWRAM_CODE Draw_scaled_to_box(const u16 *src, int src_w, int src_h, int src_stride,
+                                   int box_x, int box_y, int box_w, int box_h, u16 bg)
+{
+	u16 *vram = VideoBuffer;
+	int out_w, out_h, ox, oy, oxs, oys, col, row;
+
+	if (src_w < 1 || src_h < 1 || box_w < 1 || box_h < 1)
+		return;
+
+	// Fit by the limiting dimension: width-limited when box is relatively wider
+	// than the source, height-limited otherwise. Keeps the source aspect exactly.
+	if ((long)box_w * src_h <= (long)box_h * src_w)
+	{
+		out_w = box_w;
+		out_h = src_h * box_w / src_w;
+	}
+	else
+	{
+		out_h = box_h;
+		out_w = src_w * box_h / src_h;
+	}
+	if (out_w < 1)
+		out_w = 1;
+	if (out_h < 1)
+		out_h = 1;
+	if (out_w > 240)
+		out_w = 240; // scratch-line bound; box is expected on-screen anyway
+	if (out_h > 160)
+		out_h = 160;
+
+	// Fill the whole box with bg first; the centered image then overwrites its
+	// part, leaving only the letter-/pillarbox bars showing bg.
+	Clear((u16)box_x, (u16)box_y, (u16)box_w, (u16)box_h, bg, 1);
+
+	oxs = box_x + (box_w - out_w) / 2; // top-left of the scaled image on screen
+	oys = box_y + (box_h - out_h) / 2;
+
+	for (ox = 0; ox < out_w; ox++)
+		scale_colmap[ox] = (u16)(ox * src_w / out_w);
+
+	for (oy = 0; oy < out_h; oy++)
+	{
+		row = oys + oy;
+		if (row < 0 || row >= 160)
+			continue;
+		const u16 *srow = src + (oy * src_h / out_h) * src_stride;
+		for (ox = 0; ox < out_w; ox++)
+			scale_line[ox] = srow[scale_colmap[ox]];
+
+		// Clip the assembled row to the screen horizontally before the copy.
+		col = oxs;
+		int draw_w = out_w;
+		int src_off = 0;
+		if (col < 0)
+		{
+			src_off = -col;
+			draw_w -= src_off;
+			col = 0;
+		}
+		if (col + draw_w > 240)
+			draw_w = 240 - col;
+		if (draw_w > 0)
+			dmaCopy(scale_line + src_off, vram + row * 240 + col, draw_w * 2);
+	}
+}
+//---------------------------------------------------------------------------------
 // Procedural cover placeholder: fill a region with bg, then center a single-line
 // label clipped to the region width. Drawn instead of a baked bitmap so the label
 // can be dynamic -- used for the THUMB_INVALID cover state (#24) and reusable by
