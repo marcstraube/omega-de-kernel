@@ -1737,12 +1737,27 @@ static u32 Game_lookup_key(u32 ftype, char *code)
 	return 0;
 }
 //---------------------------------------------------------------------------------
-u32 Load_Thumbnail(TCHAR *pfilename_pic, u32 ftype)
+// Compute the stable cover key for a game ROM file into `code` (>= 9 bytes):
+// opens the file, reads its header via Game_lookup_key, closes it. 1 on success,
+// 0 if the file could not be opened or the header could not be read.
+static u32 Get_game_key(const TCHAR *pfilename, u32 ftype, char *code)
+{
+	u32 res;
+	if (f_open(&gfile, pfilename, FA_READ) != FR_OK)
+		return 0;
+	res = Game_lookup_key(ftype, code);
+	f_close(&gfile);
+	return res;
+}
+//---------------------------------------------------------------------------------
+// Load a 16bpp, top-down BMP at `path` into the cover slot, ready to be drawn or
+// scaled. Validates the image against max_w/max_h and the 64KB slot; malformed or
+// oversized files are rejected rather than mis-drawn. Sets gl_cover_w/h/stride on
+// success. Returns THUMB_ABSENT (no file), THUMB_OK, or THUMB_INVALID. Shared by
+// the list thumbnail (120x80 cap) and the fullscreen gallery (slot-bounded cap).
+static u32 Load_cover_bmp(const TCHAR *path, u32 max_w, u32 max_h)
 {
 	u32 rett;
-	u32 res;
-	TCHAR picpath[30];
-	char code[9];
 	u8 *bmp = pReadCache + COVER_SLOT_OFFSET;
 	u32 dataoff;
 	u16 bpp;
@@ -1751,23 +1766,13 @@ u32 Load_Thumbnail(TCHAR *pfilename_pic, u32 ftype)
 	u32 rowbytes;
 	u32 imgbytes;
 
-	res = f_open(&gfile, pfilename_pic, FA_READ);
-	if (res != FR_OK)
-		return THUMB_ABSENT;
-	res = Game_lookup_key(ftype, code);
-	f_close(&gfile);
-	if (!res)
+	if (f_open(&gfile, path, FA_READ) != FR_OK)
 		return THUMB_ABSENT;
 
-	sprintf(picpath, "/IMGS/%c/%c/%s.bmp", code[0], code[1], code);
-	res = f_open(&gfile, picpath, FA_READ);
-	if (res != FR_OK)
-		return THUMB_ABSENT;
-
-	// Parse the BMP header instead of assuming a fixed 120x80 image. Multi-byte
-	// fields are assembled from bytes because these offsets are not 4-aligned and
-	// the ARM7 would silently rotate an unaligned 32-bit load. The cover contract
-	// matches the official set: 16bpp, top-down rows (negative BMP height).
+	// Parse the BMP header instead of assuming a fixed size. Multi-byte fields are
+	// assembled from bytes because these offsets are not 4-aligned and the ARM7
+	// would silently rotate an unaligned 32-bit load. The cover contract matches
+	// the official set: 16bpp, top-down rows (negative BMP height).
 	f_read(&gfile, bmp, 0x36, (UINT *)&rett);
 	if (rett < 0x36 || bmp[0] != 'B' || bmp[1] != 'M')
 	{
@@ -1780,7 +1785,7 @@ u32 Load_Thumbnail(TCHAR *pfilename_pic, u32 ftype)
 	bpp = (u16)(bmp[0x1C] | (bmp[0x1D] << 8));
 	// Require top-down rows: a positive (bottom-up) height would render flipped,
 	// so reject it rather than silently mis-draw. h stays negative until checked.
-	if (bpp != 16 || h >= 0 || h < -COVER_MAX_H || dataoff < 0x36 || w < 1 || w > COVER_MAX_W)
+	if (bpp != 16 || h >= 0 || h < -(s32)max_h || dataoff < 0x36 || w < 1 || w > (s32)max_w)
 	{
 		f_close(&gfile);
 		return THUMB_INVALID;
@@ -1788,8 +1793,8 @@ u32 Load_Thumbnail(TCHAR *pfilename_pic, u32 ftype)
 	h = -h;
 
 	// Read ONLY the pixel region (BMP rows padded up to 4 bytes) to the slot base.
-	// imgbytes is bounded by COVER_MAX_W*COVER_MAX_H*2, so the read can never
-	// overrun the slot no matter what the untrusted dataoff/file size claim.
+	// The slot guard makes the read impossible to overrun no matter what the
+	// untrusted dataoff/file size claim.
 	rowbytes = ((u32)w * 2 + 3) & ~3u;
 	imgbytes = rowbytes * (u32)h;
 	if (imgbytes > COVER_SLOT_SIZE)
@@ -1807,6 +1812,17 @@ u32 Load_Thumbnail(TCHAR *pfilename_pic, u32 ftype)
 	gl_cover_h = (u16)h;
 	gl_cover_stride = (u16)(rowbytes / 2);
 	return THUMB_OK;
+}
+//---------------------------------------------------------------------------------
+u32 Load_Thumbnail(TCHAR *pfilename_pic, u32 ftype)
+{
+	TCHAR picpath[40];
+	char code[9];
+
+	if (!Get_game_key(pfilename_pic, ftype, code))
+		return THUMB_ABSENT;
+	sprintf(picpath, "/IMGS/%c/%c/%s.bmp", code[0], code[1], code);
+	return Load_cover_bmp(picpath, COVER_MAX_W, COVER_MAX_H);
 }
 //---------------------------------------------------------------------------------
 // Maximum per-game info text read into the cover slot. The slot is borrowed while
