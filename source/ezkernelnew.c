@@ -59,6 +59,8 @@ u16 gl_show_Thumbnail;
 u16 gl_cover_w;      // current cover source width  (set by Load_Thumbnail)
 u16 gl_cover_h;      // current cover source height (top-down rows)
 u16 gl_cover_stride; // source row stride in pixels (BMP rounds rows up to 4 bytes)
+u16 gl_cover_draw_w; // on-screen width of the in-list cover preview (preset fit, #8)
+u16 gl_cover_draw_h; // on-screen height of the in-list cover preview (preset fit, #8)
 u16 gl_preview_size; // in-list cover preview size preset: standard / small (#8)
 u16 gl_ingame_RTC_open_status;
 u32 gl_clock_dirty = 1; // ShowTime: repaint the clock once after its background is redrawn (#26)
@@ -1843,6 +1845,54 @@ u32 Load_Thumbnail(TCHAR *pfilename_pic, u32 ftype)
 	return Load_cover_bmp(picpath, COVER_MAX_W, COVER_MAX_H);
 }
 //---------------------------------------------------------------------------------
+// In-list cover preview box for the current size preset (#8): the stock 120x80
+// region, or the smaller 90x60 box that frees up more of the file list.
+static void Preview_box(u16 *box_w, u16 *box_h)
+{
+	if (gl_preview_size == PREVIEW_SIZE_SMALL)
+	{
+		*box_w = PREVIEW_SMALL_W;
+		*box_h = PREVIEW_SMALL_H;
+	}
+	else
+	{
+		*box_w = COVER_MAX_W;
+		*box_h = COVER_MAX_H;
+	}
+}
+//---------------------------------------------------------------------------------
+// On-screen size of a src_w x src_h cover fitted into the preset box (#8),
+// preserving aspect and never upscaling: in-list covers are loaded at <= the
+// stock 120x80 box, so "standard" draws native and "small" scales down. The
+// fit formula mirrors Draw_scaled_to_box so passing the result back as its box
+// reproduces the same size. Sets *out_w/*out_h.
+static void Cover_draw_size(u16 src_w, u16 src_h, u16 *out_w, u16 *out_h)
+{
+	u16 box_w, box_h;
+
+	Preview_box(&box_w, &box_h);
+	if (box_w > src_w)
+		box_w = src_w; // never enlarge beyond the native cover
+	if (box_h > src_h)
+		box_h = src_h;
+	if (src_w == 0 || src_h == 0)
+	{
+		*out_w = box_w;
+		*out_h = box_h;
+		return;
+	}
+	if ((u32)box_w * src_h <= (u32)box_h * src_w)
+	{
+		*out_w = box_w;
+		*out_h = (u16)((u32)src_h * box_w / src_w);
+	}
+	else
+	{
+		*out_h = box_h;
+		*out_w = (u16)((u32)src_w * box_h / src_h);
+	}
+}
+//---------------------------------------------------------------------------------
 // Fullscreen gallery (#7). The gallery for a game is image 0 (the front:
 // <code>_0.bmp hi-res, else the small <code>.bmp upscaled) followed by the
 // consecutive extras <code>_1.bmp..<code>_N.bmp (back cover, in-game, ...).
@@ -2689,6 +2739,14 @@ re_showfile:
 					has_cover = 1;
 					haveThumbnail = Load_Thumbnail(pfilename_pic, ftype);
 					short_filename = 1;
+					// On-screen preview size (#8): fit the real cover into the preset
+					// box, or use the full preset box for the placeholder / not-found
+					// art. Resolved here, before the names are drawn, so the filename
+					// width (#39) can follow the real drawn cover width.
+					if (haveThumbnail == THUMB_OK)
+						Cover_draw_size(gl_cover_w, gl_cover_h, &gl_cover_draw_w, &gl_cover_draw_h);
+					else
+						Preview_box(&gl_cover_draw_w, &gl_cover_draw_h);
 				}
 				else
 				{
@@ -2780,26 +2838,46 @@ re_showfile:
 			if (updata && gl_show_Thumbnail && has_cover && (page_num == SD_list))
 			{
 				// Clear the whole bottom-right cover region (max size) first so a
-				// previous taller/wider cover cannot leave ghost pixels behind.
+				// previous taller/wider cover or a larger preset cannot leave ghost
+				// pixels behind.
 				ClearWithBG((u16 *)gImage_SD, 240 - COVER_MAX_W, COVER_REGION_TOP, COVER_MAX_W, COVER_MAX_H, 1);
+				u16 dw = gl_cover_draw_w;
+				u16 dh = gl_cover_draw_h;
+				// List background at the cover region; fills the <=1px rounding margin
+				// the scaler may leave around a downscaled image, so no solid bar shows.
+				u16 list_bg = ((u16 *)gImage_SD)[COVER_REGION_TOP * 240 + (240 - COVER_MAX_W)];
 				if (haveThumbnail == THUMB_OK)
 				{
-					// Variable size, anchored to the bottom-right screen corner.
-					DrawPicClipStride((u16 *)(pReadCache + COVER_SLOT_OFFSET), gl_cover_stride, 240 - gl_cover_w,
-					                  160 - gl_cover_h, gl_cover_w, gl_cover_h); // show game pic
+					if (dw == gl_cover_w && dh == gl_cover_h)
+					{
+						// Cover already fits the preset box: unscaled and sharp,
+						// anchored to the bottom-right corner (the stock behaviour).
+						DrawPicClipStride((u16 *)(pReadCache + COVER_SLOT_OFFSET), gl_cover_stride, 240 - dw, 160 - dh,
+						                  dw, dh); // show game pic
+					}
+					else
+					{
+						// Smaller preset: scale the cover down into the box, still
+						// bottom-right anchored (box == fitted size, no letterbox).
+						Draw_scaled_to_box((u16 *)(pReadCache + COVER_SLOT_OFFSET), gl_cover_w, gl_cover_h,
+						                   gl_cover_stride, 240 - dw, 160 - dh, dw, dh, list_bg);
+					}
 				}
 				else if (haveThumbnail == THUMB_INVALID)
 				{
 					// Cover file exists but is unusable: a distinct procedural
 					// placeholder so a corrupt cover reads differently from a
-					// missing one (#24). Colour/label are easy to tweak.
-					Draw_cover_placeholder(240 - COVER_MAX_W, COVER_REGION_TOP, COVER_MAX_W, COVER_MAX_H, RGB(24, 0, 0),
-					                       "BAD COVER");
+					// missing one (#24), sized to the preset box.
+					Draw_cover_placeholder(240 - dw, 160 - dh, dw, dh, RGB(24, 0, 0), "BAD COVER");
 				}
 				else
 				{
-					// THUMB_ABSENT: no cover file -- keep the baked "IMAGE NOT FOUND" art.
-					DrawPic((u16 *)(gImage_NOTFOUND), 120, 80, 120, 80, 0, 0, 1); // show game pic
+					// THUMB_ABSENT: baked "IMAGE NOT FOUND" art, drawn natively at the
+					// stock size or scaled down for the small preset.
+					if (dw == COVER_MAX_W && dh == COVER_MAX_H)
+						DrawPic((u16 *)(gImage_NOTFOUND), 120, 80, 120, 80, 0, 0, 1); // show game pic
+					else
+						Draw_scaled_to_box((u16 *)(gImage_NOTFOUND), 120, 80, 120, 240 - dw, 160 - dh, dw, dh, list_bg);
 				}
 			}
 			if (continue_MENU)
