@@ -57,8 +57,9 @@ instead of `/IMGS`) and the extension (`.txt` instead of `.bmp`) differ.
 
 - On **L + SELECT**, the kernel computes the cover key for the highlighted game,
   opens `/INFO/<c0>/<c1>/<code>.txt`, and reads it into the (otherwise idle)
-  cover image buffer. No extra RAM is reserved — the cover is reloaded when the
-  panel closes.
+  cover image buffer — no separate text buffer is allocated, and the cover is
+  reloaded when the panel closes. (The word-wrap index tables use ~1.6 KB of
+  EWRAM.)
 - The text is word-wrapped and drawn with the existing `DrawHZText12` font
   routine. The window is modeled on the built-in help window: it draws over the
   screen and returns to the list on a key press.

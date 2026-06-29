@@ -29,8 +29,10 @@
 // Wrapped-line table: byte offset + byte length into the text buffer. A line is
 // never split inside a GBK double-byte pair (the wrapper steps two bytes at a
 // time over them), so DrawHZText12 always sees aligned lead/trail bytes.
-static u16 g_line_off[INFO_MAX_LINES];
-static u16 g_line_len[INFO_MAX_LINES];
+// EWRAM_BSS keeps these ~1.6 KB out of the scarce 32 KB IWRAM (the default .bss
+// here); the info window is modal and not performance-critical, so EWRAM is fine.
+static u16 g_line_off[INFO_MAX_LINES] EWRAM_BSS;
+static u16 g_line_len[INFO_MAX_LINES] EWRAM_BSS;
 
 // Greedy word-wrap of buf[0..len) into the line table. Pixel width is exact:
 // ASCII is 1 byte / 6 px, GBK double-byte is 2 bytes / 12 px, matching
