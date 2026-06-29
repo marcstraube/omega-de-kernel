@@ -149,6 +149,42 @@ void Get_file_size(u32 num, char *str)
 	}
 }
 //---------------------------------------------------------------------------------
+// File-name column geometry next to the in-list cover preview (#39). The column
+// follows the *actual* drawn cover (gl_cover_draw_w/h, set when the cover loads)
+// instead of a fixed 17 chars, so a narrow cover or the "small" preset (#8) does
+// not truncate names more than the cover's real footprint requires.
+
+// Chars that fit left of the cover on a cover row: text starts at x=17 (icon + 1),
+// 6 px per char, the cover takes the right gl_cover_draw_w px. Capped at 31 so it
+// stays strictly below the no-cover width 32, which the DIR/size gates and clear
+// widths use as the "row has no cover" sentinel; a realistic cover (>=~40 px wide)
+// always yields fewer anyway.
+static u32 Cover_name_chars(void)
+{
+	int avail = (240 - (int)gl_cover_draw_w) - 17;
+	int n = avail / 6;
+
+	if (n < 1)
+		n = 1;
+	if (n > 31)
+		n = 31;
+	return (u32)n;
+}
+
+// True if list row `line` (0-based) overlaps the cover band and so must leave room
+// for it. The cover occupies the bottom gl_cover_draw_h px; row `line` spans 14 px
+// from y = 20 + 14*line. Generalises the old fixed "line > 3" (which assumed the
+// stock 80 px cover) to the preset height (#8).
+static u32 Row_is_cover_row(u32 line, u32 haveThumbnail)
+{
+	u32 row_bottom = 20 + 14 * line + 13;
+	u32 cover_top = 160 - gl_cover_draw_h;
+
+	if (!haveThumbnail)
+		return 0;
+	return row_bottom > cover_top;
+}
+//---------------------------------------------------------------------------------
 void Show_ICON_filename_SD(u32 show_offset, u32 file_select, u32 haveThumbnail)
 {
 	u32 need_show_game;
@@ -175,25 +211,12 @@ void Show_ICON_filename_SD(u32 show_offset, u32 file_select, u32 haveThumbnail)
 
 	for (line = 0; line < need_show_folder; line++)
 	{
-		if (haveThumbnail)
-		{
-			if (line > 3)
-			{
-				char_num = 17;
-			}
-			else
-			{
-				char_num = 32;
-			}
-		}
-		else
-		{
-			char_num = 32;
-		}
+		char_num = Row_is_cover_row(line, haveThumbnail) ? Cover_name_chars() : 32;
 
 		if (line == file_select)
 		{
-			Clear(17, 20 + file_select * 14, (char_num == 17) ? (17 * 6 + 1) : (240 - 17), 13, gl_color_selectBG_sd, 1);
+			Clear(17, 20 + file_select * 14, (char_num == 32) ? (240 - 17) : (char_num * 6 + 1), 13,
+			      gl_color_selectBG_sd, 1);
 		}
 
 		DrawPic((u16 *)(gImage_icon_folder /*gImage_icons+0*16*14*2*/), 0, y_offset + line * 14, 16, 14, 1,
@@ -201,7 +224,7 @@ void Show_ICON_filename_SD(u32 show_offset, u32 file_select, u32 haveThumbnail)
 
 		DrawHZText12(pFolder[show_offset + line].filename, char_num, 1 + 16, y_offset + line * 14, name_color, 1);
 
-		if ((haveThumbnail == 1) && (line > 3))
+		if (Row_is_cover_row(line, haveThumbnail))
 		{
 		}
 		else
@@ -220,25 +243,12 @@ void Show_ICON_filename_SD(u32 show_offset, u32 file_select, u32 haveThumbnail)
 
 	for (line = need_show_folder; line < need_show_folder + need_show_game; line++)
 	{
-		if (haveThumbnail)
-		{
-			if (line > 3)
-			{
-				char_num = 17;
-			}
-			else
-			{
-				char_num = 32;
-			}
-		}
-		else
-		{
-			char_num = 32;
-		}
+		char_num = Row_is_cover_row(line, haveThumbnail) ? Cover_name_chars() : 32;
 
 		if (line == file_select)
 		{
-			Clear(17, 20 + file_select * 14, (char_num == 17) ? (17 * 6 + 1) : (240 - 17), 13, gl_color_selectBG_sd, 1);
+			Clear(17, 20 + file_select * 14, (char_num == 32) ? (240 - 17) : (char_num * 6 + 1), 13,
+			      gl_color_selectBG_sd, 1);
 		}
 
 		u32 showy = y_offset + (line) * 14;
@@ -269,7 +279,7 @@ void Show_ICON_filename_SD(u32 show_offset, u32 file_select, u32 haveThumbnail)
 
 		DrawHZText12(pFilename_buffer[offset + line - need_show_folder].filename, char_num, 1 + 16, showy, name_color,
 		             1);
-		if ((haveThumbnail == 1) && (line > 3))
+		if (Row_is_cover_row(line, haveThumbnail))
 		{
 		}
 		else
@@ -318,99 +328,35 @@ void IWRAM_CODE Refresh_filename(u32 show_offset, u32 file_select, u32 updown, u
 	u32 showy1;
 	u32 showy2;
 
-	if (haveThumbnail)
-	{
-		switch (file_select)
-		{
-		case 0:
-		case 1:
-		case 2:
-			char_num1 = 32;
-			char_num2 = 32;
-			clean_len1 = 240 - 17;
-			clean_len2 = 240 - 17;
-			break;
-		case 3:
-			if (updown == 3)
-			{
-				char_num1 = 32;
-				char_num2 = 17;
-				clean_len1 = 240 - 17;
-				clean_len2 = 17 * 6 + 1;
-			}
-			else
-			{
-				char_num1 = 32;
-				char_num2 = 32;
-				clean_len1 = 240 - 17;
-				clean_len2 = 240 - 17;
-			}
-			break;
-		case 4:
-			if (updown == 2)
-			{
-				char_num1 = 32;
-				char_num2 = 17;
-				clean_len1 = 240 - 17;
-				clean_len2 = 17 * 6 + 1;
-			}
-			else
-			{
-				char_num1 = 17;
-				char_num2 = 17;
-				clean_len1 = 17 * 6 + 1;
-				clean_len2 = 17 * 6 + 1;
-			}
-			break;
-		case 5:
-			if (updown == 2)
-			{
-				char_num1 = 17;
-				char_num2 = 17;
-				clean_len1 = 240 - 17;
-				clean_len2 = 17 * 6 + 1;
-			}
-			else
-			{
-				char_num1 = 17;
-				char_num2 = 17;
-				clean_len1 = 17 * 6 + 1;
-				clean_len2 = 17 * 6 + 1;
-			}
-			break;
-		default:
-			char_num1 = 17;
-			char_num2 = 17;
-			clean_len1 = 17 * 6 + 1;
-			clean_len2 = 17 * 6 + 1;
-			break;
-		}
-	}
-	else
-	{
-		char_num1 = 32;
-		char_num2 = 32;
-		clean_len1 = 240 - 17;
-		clean_len2 = 240 - 17;
-	}
-
 	name_color1 = gl_color_text;
 	// name_color2 = 0x7FFF;
 	if (updown == 2) // down
 	{
 		xx1 = file_select - 1;
 		xx2 = file_select;
-		showy1 = y_offset + (file_select - 1) * 14;
-		showy2 = y_offset + (file_select) * 14;
-		ClearWithBG((u16 *)gImage_SD, 17, 20 + xx1 * 14, clean_len1, 13, 1);
-		Clear(17, 20 + xx2 * 14, clean_len2, 13, gl_color_selectBG_sd, 1);
 	}
 	else // if(updown ==3)//up
 	{
 		xx1 = file_select;
 		xx2 = file_select + 1;
-		showy1 = y_offset + (file_select) * 14;
-		showy2 = y_offset + (file_select + 1) * 14;
+	}
+	showy1 = y_offset + xx1 * 14;
+	showy2 = y_offset + xx2 * 14;
+
+	// Column widths follow the actual drawn cover per row (#39): a row that overlaps
+	// the cover band leaves room for it, the rest spans the full width.
+	char_num1 = Row_is_cover_row(xx1, haveThumbnail) ? Cover_name_chars() : 32;
+	char_num2 = Row_is_cover_row(xx2, haveThumbnail) ? Cover_name_chars() : 32;
+	clean_len1 = (char_num1 == 32) ? (240 - 17) : (char_num1 * 6 + 1);
+	clean_len2 = (char_num2 == 32) ? (240 - 17) : (char_num2 * 6 + 1);
+
+	if (updown == 2) // down
+	{
+		ClearWithBG((u16 *)gImage_SD, 17, 20 + xx1 * 14, clean_len1, 13, 1);
+		Clear(17, 20 + xx2 * 14, clean_len2, 13, gl_color_selectBG_sd, 1);
+	}
+	else // up
+	{
 		Clear(17, 20 + xx1 * 14, clean_len1, 13, gl_color_selectBG_sd, 1);
 		ClearWithBG((u16 *)gImage_SD, 17, 20 + xx2 * 14, clean_len2, 13, 1);
 	}
@@ -601,21 +547,7 @@ void Filename_loop(u32 shift, u32 show_offset, u32 file_select, u32 haveThumbnai
 				need_show_folder = 10;
 		}
 
-		if (haveThumbnail)
-		{
-			if (file_select > 3)
-			{
-				char_num = 17;
-			}
-			else
-			{
-				char_num = 33;
-			}
-		}
-		else
-		{
-			char_num = 33;
-		}
+		char_num = Row_is_cover_row(file_select, haveThumbnail) ? Cover_name_chars() : 33;
 
 		u32 offset = 0;
 		if (show_offset >= folder_total)
