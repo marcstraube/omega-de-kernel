@@ -319,9 +319,17 @@ void IWRAM_CODE Draw_scaled_to_box(const u16 *src, int src_w, int src_h, int src
 	if (out_h > 160)
 		out_h = 160;
 
-	// Fill the whole box with bg first; the centered image then overwrites its
-	// part, leaving only the letter-/pillarbox bars showing bg.
-	Clear((u16)box_x, (u16)box_y, (u16)box_w, (u16)box_h, bg, 1);
+	// Fill the box with bg first; the centered image then overwrites its part,
+	// leaving only the letter-/pillarbox bars showing bg. Clamp the fill rect to
+	// the screen: the box may legitimately sit partly off-screen (the row/column
+	// clip below handles that for the image), and Clear() takes unsigned coords,
+	// so a negative origin must not wrap into a huge value.
+	int fx = box_x < 0 ? 0 : box_x;
+	int fy = box_y < 0 ? 0 : box_y;
+	int fw = (box_x + box_w > 240 ? 240 : box_x + box_w) - fx;
+	int fh = (box_y + box_h > 160 ? 160 : box_y + box_h) - fy;
+	if (fw > 0 && fh > 0)
+		Clear((u16)fx, (u16)fy, (u16)fw, (u16)fh, bg, 1);
 
 	oxs = box_x + (box_w - out_w) / 2; // top-left of the scaled image on screen
 	oys = box_y + (box_h - out_h) / 2;
