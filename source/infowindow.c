@@ -14,10 +14,13 @@
 // never trips the DrawHZText12 right-edge clip at x = INFO_MARGIN_X.
 #define INFO_MARGIN_X 4
 #define INFO_USABLE_W (240 - 2 * INFO_MARGIN_X) // 232 px
-#define INFO_TITLE_Y 2
-#define INFO_TEXT_TOP 18
+// The window draws over gImage_SD, whose top ~20px hold the list tabs. Keep all
+// content below that strip (the settings screen likewise starts its content at
+// y=24) so the title no longer sits on the tabs.
+#define INFO_TITLE_Y 22
+#define INFO_TEXT_TOP 36
 #define INFO_LINE_H 13
-#define INFO_VIS_LINES 10 // 18 + 10*13 = 148, leaves room for the footer
+#define INFO_VIS_LINES 8 // 36 + 8*13 = 140, above the footer
 // Footer at y=148 so the 12px glyph rows (148..159) stay fully on the 240x160
 // screen; y=149 would push the bottom pixel row off-screen.
 #define INFO_FOOTER_Y 148
