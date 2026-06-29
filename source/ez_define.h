@@ -71,8 +71,8 @@
 #define COVER_SLOT_SIZE (MAX_pReadCache_size - COVER_SLOT_OFFSET)
 
 // Load_Thumbnail() result: cover absent, loaded OK, or present-but-unusable.
-// THUMB_INVALID is distinguished at load time but currently falls back to the
-// NOTFOUND graphic at draw time (a dedicated INVALID asset is a follow-up).
+// THUMB_INVALID draws a distinct procedural placeholder (#24) so a corrupt cover
+// reads differently from a missing one, which keeps the baked NOTFOUND graphic.
 #define THUMB_ABSENT 0
 #define THUMB_OK 1
 #define THUMB_INVALID 2

@@ -274,3 +274,26 @@ void ShowbootProgress(char *str)
 	Clear(60, 160 - 15, 120, 15, gl_color_cheat_black, 1);
 	DrawHZText12(str, 0, (240 - str_len * 6) / 2, 160 - 15, gl_color_text, 1);
 }
+//---------------------------------------------------------------------------------
+// Procedural cover placeholder: fill a region with bg, then center a single-line
+// label clipped to the region width. Drawn instead of a baked bitmap so the label
+// can be dynamic -- used for the THUMB_INVALID cover state (#24) and reusable by
+// the fullscreen no-cover view (#7), where the label is the game name. Centering
+// uses the ASCII 6px metric; GBK-aware centering and word-wrap are a #7 refinement.
+void Draw_cover_placeholder(u16 x, u16 y, u16 w, u16 h, u16 bg, const char *label)
+{
+	Clear(x, y, w, h, bg, 1);
+	if (label && label[0])
+	{
+		u32 maxchars = w / 6;
+		u32 n = strlen(label);
+		if (n > maxchars)
+			n = maxchars; // clip so the text never spills past the box
+		if (n > 0)        // a tiny region (w < 6) leaves no room: draw the box only,
+		{                 // never pass len 0 (DrawHZText12 would strlen-draw unclipped)
+			u16 tx = (u16)(x + (w - n * 6) / 2);
+			u16 ty = (u16)(y + (h > 12 ? (h - 12) / 2 : 0)); // guard h<12 underflow
+			DrawHZText12((char *)label, (u16)n, tx, ty, gl_color_text, 1);
+		}
+	}
+}

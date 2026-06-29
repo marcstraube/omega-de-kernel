@@ -7,6 +7,7 @@ void DrawPic(u16 *GFX, u16 x, u16 y, u16 w, u16 h, u8 isTrans, u16 tcolor, u8 is
 void DrawPicClipStride(const u16 *src, int src_stride, int x, int y, int w, int h);
 void DrawPicClip(const u16 *src, int x, int y, int w, int h);
 void DrawHZText12(char *str, u16 len, u16 x, u16 y, u16 c, u8 isDrawDirect);
+void Draw_cover_placeholder(u16 x, u16 y, u16 w, u16 h, u16 bg, const char *label);
 void DEBUG_printf(const char *format, ...);
 void ShowbootProgress(char *str);
 extern void wait_btn(void);

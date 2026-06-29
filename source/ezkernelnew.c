@@ -2577,9 +2577,17 @@ re_showfile:
 					DrawPicClipStride((u16 *)(pReadCache + COVER_SLOT_OFFSET), gl_cover_stride, 240 - gl_cover_w,
 					                  160 - gl_cover_h, gl_cover_w, gl_cover_h); // show game pic
 				}
+				else if (haveThumbnail == THUMB_INVALID)
+				{
+					// Cover file exists but is unusable: a distinct procedural
+					// placeholder so a corrupt cover reads differently from a
+					// missing one (#24). Colour/label are easy to tweak.
+					Draw_cover_placeholder(240 - COVER_MAX_W, COVER_REGION_TOP, COVER_MAX_W, COVER_MAX_H,
+					                       RGB(24, 0, 0), "BAD COVER");
+				}
 				else
 				{
-					// THUMB_ABSENT, or THUMB_INVALID until a dedicated asset exists.
+					// THUMB_ABSENT: no cover file -- keep the baked "IMAGE NOT FOUND" art.
 					DrawPic((u16 *)(gImage_NOTFOUND), 120, 80, 120, 80, 0, 0, 1); // show game pic
 				}
 			}
