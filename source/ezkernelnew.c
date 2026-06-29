@@ -2043,8 +2043,8 @@ void Show_fullscreen_cover(u32 *p_show_offset, u32 *p_file_select)
 			TCHAR *fn = pFilename_buffer[cur - folder_total].filename;
 			u32 r = (gcount > 0) ? Load_gallery_image(code, gidx) : THUMB_ABSENT;
 			if (r == THUMB_OK)
-				Draw_scaled_to_box((u16 *)(pReadCache + COVER_SLOT_OFFSET), gl_cover_w, gl_cover_h,
-				                   gl_cover_stride, 0, 0, 240, 160, RGB(0, 0, 0));
+				Draw_scaled_to_box((u16 *)(pReadCache + COVER_SLOT_OFFSET), gl_cover_w, gl_cover_h, gl_cover_stride, 0,
+				                   0, 240, 160, RGB(0, 0, 0));
 			else
 				// No / unusable cover: black screen with the game's file name.
 				Draw_cover_placeholder(0, 0, 240, 160, RGB(0, 0, 0), fn);
@@ -2786,8 +2786,8 @@ re_showfile:
 					// Cover file exists but is unusable: a distinct procedural
 					// placeholder so a corrupt cover reads differently from a
 					// missing one (#24). Colour/label are easy to tweak.
-					Draw_cover_placeholder(240 - COVER_MAX_W, COVER_REGION_TOP, COVER_MAX_W, COVER_MAX_H,
-					                       RGB(24, 0, 0), "BAD COVER");
+					Draw_cover_placeholder(240 - COVER_MAX_W, COVER_REGION_TOP, COVER_MAX_W, COVER_MAX_H, RGB(24, 0, 0),
+					                       "BAD COVER");
 				}
 				else
 				{
@@ -3569,7 +3569,7 @@ re_show_menu:
 			}
 			else if (MENU_line == 4)
 			{ // save type
-				// do nothing
+			  // do nothing
 			}
 			else
 			{ // boot game or load to NOR

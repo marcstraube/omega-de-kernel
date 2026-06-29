@@ -8,8 +8,8 @@ void DrawPicClipStride(const u16 *src, int src_stride, int x, int y, int w, int 
 void DrawPicClip(const u16 *src, int x, int y, int w, int h);
 void DrawHZText12(char *str, u16 len, u16 x, u16 y, u16 c, u8 isDrawDirect);
 void Draw_cover_placeholder(u16 x, u16 y, u16 w, u16 h, u16 bg, const char *label);
-void Draw_scaled_to_box(const u16 *src, int src_w, int src_h, int src_stride,
-                        int box_x, int box_y, int box_w, int box_h, u16 bg);
+void Draw_scaled_to_box(const u16 *src, int src_w, int src_h, int src_stride, int box_x, int box_y, int box_w,
+                        int box_h, u16 bg);
 void DEBUG_printf(const char *format, ...);
 void ShowbootProgress(char *str);
 extern void wait_btn(void);

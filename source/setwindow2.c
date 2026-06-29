@@ -159,7 +159,8 @@ u32 Setting_window2(void)
 			{
 				// LED state changed: clear the variable region so the backup row
 				// (which moves with the LED state) leaves no ghost behind
-				ClearWithBG((u16 *)gImage_SET2, 0, y_offset + line_x * 3 - 2, 240, 160 - (y_offset + line_x * 3 - 2), 1);
+				ClearWithBG((u16 *)gImage_SET2, 0, y_offset + line_x * 3 - 2, 240, 160 - (y_offset + line_x * 3 - 2),
+				            1);
 				led_drawn_state = led_open_sel;
 			}
 			if (led_open_sel == 0x1)

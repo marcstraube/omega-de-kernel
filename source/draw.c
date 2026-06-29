@@ -289,8 +289,8 @@ void ShowbootProgress(char *str)
 // screen width and live in EWRAM so the slot (0x10000) is never aliased.
 static u16 scale_colmap[240] EWRAM_BSS; // src column for each output column
 static u16 scale_line[240] EWRAM_BSS;   // one assembled output row, then DMA'd out
-void IWRAM_CODE Draw_scaled_to_box(const u16 *src, int src_w, int src_h, int src_stride,
-                                   int box_x, int box_y, int box_w, int box_h, u16 bg)
+void IWRAM_CODE Draw_scaled_to_box(const u16 *src, int src_w, int src_h, int src_stride, int box_x, int box_y,
+                                   int box_w, int box_h, u16 bg)
 {
 	u16 *vram = VideoBuffer;
 	int out_w, out_h, ox, oy, oxs, oys, col, row, draw_w, src_off;

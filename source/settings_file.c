@@ -34,13 +34,12 @@ typedef struct
 	const char *key;
 	u16 index;
 	u8 type;
-	u16 def;      // fallback when NOR holds an out-of-range/uninitialised value (matches CheckSwitch)
-	u8 per_game;  // 1 = overridable per game (issue #5); 0 (default) = global only
+	u16 def;     // fallback when NOR holds an out-of-range/uninitialised value (matches CheckSwitch)
+	u8 per_game; // 1 = overridable per game (issue #5); 0 (default) = global only
 } setting_desc;
 
 // Button code (SET_info value) -> name, matching the on-device hotkey menu order.
-static const char *const button_names[10] = {"A", "B", "SELECT", "START", "RIGHT",
-                                              "LEFT", "UP", "DOWN", "R", "L"};
+static const char *const button_names[10] = {"A", "B", "SELECT", "START", "RIGHT", "LEFT", "UP", "DOWN", "R", "L"};
 
 // Single source of truth for both writing and parsing the file.
 static const setting_desc settings[] = {
@@ -139,8 +138,7 @@ static u16 canonical(const setting_desc *d, u16 v)
 	case ST_MODEB:
 		return (v <= 2) ? v : d->def;
 	case ST_BACKUP:
-		return ((v & 0xFF00) == BACKUP_SET_TAG && (v & 0x00FF) <= BACKUP_GEN_MAX) ? v
-		                                                                          : (u16)(BACKUP_SET_TAG | d->def);
+		return ((v & 0xFF00) == BACKUP_SET_TAG && (v & 0x00FF) <= BACKUP_GEN_MAX) ? v : (u16)(BACKUP_SET_TAG | d->def);
 	case ST_HOTKEY:
 	default:
 		return v; // no CheckSwitch default; button_name() clamps on display
@@ -283,8 +281,8 @@ static void report_save_error(void)
 // per-game-overridable entries (a per-game record). Returns 1 on success, 0 on
 // any FatFS failure (temp discarded, the existing file left intact). The caller
 // must ensure the target folder exists. Shared by the global and per-game writers.
-static int write_descriptor_table(const char *tmp, const char *final, const char *const *header,
-                                  u32 header_count, int per_game_only, const u16 *buf)
+static int write_descriptor_table(const char *tmp, const char *final, const char *const *header, u32 header_count,
+                                  int per_game_only, const u16 *buf)
 {
 	char line[160];
 	char val[48];

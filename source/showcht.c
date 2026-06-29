@@ -306,8 +306,8 @@ u32 Get_CHT_val(FIL *file, char *KEY_section, char *KEY_secval /*,char getbuff[]
 						_paramv[_vlen++] = buf[i];
 					}
 					_vlen--; // remove 0xd
-					// DEBUG_printf("%x %x %x %x %x %x %x %x", buf[0],buf[1], buf[2],buf[3], buf[4],buf[5],
-					// buf[6],buf[7]); wait_btn();
+					         // DEBUG_printf("%x %x %x %x %x %x %x %x", buf[0],buf[1], buf[2],buf[3], buf[4],buf[5],
+					         // buf[6],buf[7]); wait_btn();
 				}
 			endcht:
 				return _vlen;
