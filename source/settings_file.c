@@ -25,7 +25,8 @@ enum
 	ST_LANG,   // english / chinese  <-> 0xE1E1 / 0xE2E2
 	ST_MODEB,  // rumble / ram / link  <-> 0 / 1 / 2  (NOR-standalone hardware mode)
 	ST_BACKUP, // 0..BACKUP_GEN_MAX, stored tagged in SET_info
-	ST_HOTKEY  // three button names, e.g. "L + R + SELECT" (three SET_info slots)
+	ST_HOTKEY, // three button names, e.g. "L + R + SELECT" (three SET_info slots)
+	ST_PREVIEW // standard / small  <-> 0 / 1  (in-list cover preview size, issue #8)
 };
 
 typedef struct
@@ -47,6 +48,7 @@ static const setting_desc settings[] = {
     {"general", "show_thumbnail", assress_show_Thumbnail, ST_BOOL, 0, 0},
     {"general", "ingame_rtc", assress_ingame_RTC_open_status, ST_BOOL, 1, 0},
     {"general", "per_game_settings", assress_per_game_settings, ST_BOOL, 1, 0}, // master switch (issue #5)
+    {"general", "preview_size", assress_preview_size, ST_PREVIEW, PREVIEW_SIZE_STANDARD, 0},
 
     // Per-game (issue #5) covers only the boot-time choices that the addon boot
     // path applies through gl_* and re-reads per launch. auto_save and the sleep/
@@ -139,6 +141,8 @@ static u16 canonical(const setting_desc *d, u16 v)
 		return (v <= 2) ? v : d->def;
 	case ST_BACKUP:
 		return ((v & 0xFF00) == BACKUP_SET_TAG && (v & 0x00FF) <= BACKUP_GEN_MAX) ? v : (u16)(BACKUP_SET_TAG | d->def);
+	case ST_PREVIEW:
+		return (v == PREVIEW_SIZE_STANDARD || v == PREVIEW_SIZE_SMALL) ? v : d->def;
 	case ST_HOTKEY:
 	default:
 		return v; // no CheckSwitch default; button_name() clamps on display
@@ -163,6 +167,9 @@ static void format_value(char *out, const u16 *buf, const setting_desc *d)
 		break;
 	case ST_BACKUP:
 		sprintf(out, "%u", (unsigned)(v & 0x00FF)); // canonical() ensured tag + range
+		break;
+	case ST_PREVIEW:
+		strcpy(out, v == PREVIEW_SIZE_SMALL ? "small" : "standard"); // canonical() guarantees 0/1
 		break;
 	case ST_HOTKEY:
 		sprintf(out, "%s + %s + %s", button_name(buf[d->index]), button_name(buf[d->index + 1]),
@@ -231,6 +238,18 @@ static int parse_value(const setting_desc *d, char *val, u16 *out)
 		out[0] = (u16)(BACKUP_SET_TAG | (n & 0x00FF));
 		return 1;
 	}
+	case ST_PREVIEW:
+		if (!strcmp(val, "standard") || !strcmp(val, "0"))
+		{
+			out[0] = PREVIEW_SIZE_STANDARD;
+			return 1;
+		}
+		if (!strcmp(val, "small") || !strcmp(val, "1"))
+		{
+			out[0] = PREVIEW_SIZE_SMALL;
+			return 1;
+		}
+		return 0;
 	case ST_HOTKEY:
 	{
 		char *p = val;

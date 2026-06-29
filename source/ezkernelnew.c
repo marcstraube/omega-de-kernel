@@ -59,6 +59,7 @@ u16 gl_show_Thumbnail;
 u16 gl_cover_w;      // current cover source width  (set by Load_Thumbnail)
 u16 gl_cover_h;      // current cover source height (top-down rows)
 u16 gl_cover_stride; // source row stride in pixels (BMP rounds rows up to 4 bytes)
+u16 gl_preview_size; // in-list cover preview size preset: standard / small (#8)
 u16 gl_ingame_RTC_open_status;
 u32 gl_clock_dirty = 1; // ShowTime: repaint the clock once after its background is redrawn (#26)
 
@@ -1423,6 +1424,12 @@ void CheckSwitch(void)
 	if ((gl_show_Thumbnail != 0x0) && (gl_show_Thumbnail != 0x1))
 	{
 		gl_show_Thumbnail = 0x0;
+	}
+
+	gl_preview_size = Read_SET_info(assress_preview_size);
+	if ((gl_preview_size != PREVIEW_SIZE_STANDARD) && (gl_preview_size != PREVIEW_SIZE_SMALL))
+	{
+		gl_preview_size = PREVIEW_SIZE_STANDARD;
 	}
 
 	gl_ingame_RTC_open_status = Read_SET_info(assress_ingame_RTC_open_status);

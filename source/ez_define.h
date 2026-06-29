@@ -65,6 +65,15 @@
 #define COVER_MAX_W 120
 #define COVER_MAX_H (160 - COVER_REGION_TOP)
 
+// In-list cover preview size presets (#8). "standard" keeps the stock 120x80
+// region; "small" scales the cover into a 90x60 box (3/4 of standard, same 3:2)
+// so more of the file list stays readable. Covers are only ever downscaled or
+// drawn at native size -- never upscaled -- so the preview stays sharp.
+#define PREVIEW_SIZE_STANDARD 0
+#define PREVIEW_SIZE_SMALL 1
+#define PREVIEW_SMALL_W 90
+#define PREVIEW_SMALL_H 60
+
 // The cover image is read into pReadCache at this offset; everything below it in
 // the buffer is the room available for the pixel data.
 #define COVER_SLOT_OFFSET 0x10000
@@ -142,6 +151,7 @@
 #define assress_SD_B 22
 #define assress_backup 23
 #define assress_per_game_settings 24 // master switch for the per-game override layer (issue #5)
+#define assress_preview_size 25      // in-list cover preview size: standard / small (issue #8)
 
 #define assress_saveMODE 64
 #define assress_max 65
