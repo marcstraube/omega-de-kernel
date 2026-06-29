@@ -3,3 +3,6 @@
 
 # style: apply clang-format to hand-written sources
 c613aa73ea99180df05c621dd25a716c48f4db34
+
+# style: re-apply clang-format to hand-written sources
+12a9d45eb504b1c193eef1cabf15d68909a01dc9
