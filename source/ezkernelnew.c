@@ -23,6 +23,7 @@
 #include "settings_file.h"
 #include "showcht.h"
 #include "helpwindow.h"
+#include "infowindow.h"
 
 #include "jagoombacolor.h"
 #include "pocketnes.h"
@@ -1808,6 +1809,52 @@ u32 Load_Thumbnail(TCHAR *pfilename_pic, u32 ftype)
 	return THUMB_OK;
 }
 //---------------------------------------------------------------------------------
+// Maximum per-game info text read into the cover slot. The slot is borrowed while
+// the info window is open (the cover is reloaded on return), so this costs no
+// extra RAM. The terminator written at buf[n] always stays inside the slot.
+#define INFO_MAX_BYTES 8192
+
+// Load the per-game info text for pfilename and show it in the scrollable info
+// window (#6). The lookup key is identical to the cover key (GBA 4-char code /
+// GB-GBC CRC32), so covers and info share one naming scheme; only the directory
+// (/INFO vs /IMGS) and extension differ. A missing file yields n == 0, which the
+// window renders as a short placeholder.
+void Show_game_info(TCHAR *pfilename, u32 ftype)
+{
+	u32 rett;
+	TCHAR txtpath[32];
+	char code[9];
+	char *buf = (char *)(pReadCache + COVER_SLOT_OFFSET);
+	u32 n = 0;
+
+	if (f_open(&gfile, pfilename, FA_READ) == FR_OK)
+	{
+		u32 keyed = Game_lookup_key(ftype, code);
+		f_close(&gfile);
+		if (keyed)
+		{
+			sprintf(txtpath, "/INFO/%c/%c/%s.txt", code[0], code[1], code);
+			if (f_open(&gfile, txtpath, FA_READ) == FR_OK)
+			{
+				f_read(&gfile, buf, INFO_MAX_BYTES, (UINT *)&rett);
+				f_close(&gfile);
+				n = rett;
+				// Drop a trailing unpaired GBK lead byte left by a mid-pair cut at
+				// INFO_MAX_BYTES. The text contract is GB2312 (both bytes >= 0x80),
+				// so an odd run of trailing high bytes means the last pair is split;
+				// without this DrawHZText12 would pair the lead byte with the NUL.
+				u32 high = 0;
+				while (high < n && (u8)buf[n - 1 - high] >= 0x80)
+					high++;
+				if (high & 1)
+					n--;
+			}
+		}
+	}
+	buf[n] = 0; // NUL-terminate for DrawHZText12 (see infowindow.h)
+	Show_game_info_window(buf, n, pfilename);
+}
+//---------------------------------------------------------------------------------
 // Delete file
 void SD_list_L_START(u32 show_offset, u32 file_select, u32 folder_total)
 {
@@ -2697,9 +2744,23 @@ re_showfile:
 			}
 			else if (keysdown & KEY_SELECT)
 			{
-				gl_show_Thumbnail = !gl_show_Thumbnail;
-				save_set_info_SELECT();
-				updata = 1;
+				if (key_L && page_num == SD_list && (show_offset + file_select >= folder_total))
+				{ // L + SELECT on a file: open the per-game info window (#6).
+				  // A combo rather than a long-press, so SELECT alone keeps
+				  // toggling the cover preview instantly (handled below).
+					TCHAR *pfn = pFilename_buffer[show_offset + file_select - folder_total].filename;
+					u32 ftype = Check_file_type(pfn);
+					f_chdir(currentpath); // ensure the ROM opens (matches SD_list_MENU)
+					Show_game_info(pfn, ftype);
+					DrawPic((u16 *)gImage_SD, 0, 0, 240, 160, 0, 0, 1); // wipe the window
+					updata = 1;                                         // redraw list + cover
+				}
+				else
+				{
+					gl_show_Thumbnail = !gl_show_Thumbnail;
+					save_set_info_SELECT();
+					updata = 1;
+				}
 			}
 			else if (keysdown & KEY_A)
 			{

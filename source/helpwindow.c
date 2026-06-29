@@ -48,6 +48,9 @@ void Show_help_window()
 	DrawHZText12("L+START:", 0, 3, 65, gl_color_selected, 1);
 	DrawHZText12(gl_LSTART_help, 0, 52, 65, gl_color_text, 1);
 
+	DrawHZText12("L+SELECT:", 0, 3, 80, gl_color_selected, 1);
+	DrawHZText12(gl_LSELECT_help, 0, 58, 80, gl_color_text, 1);
+
 	sprintf(msg, "Rev.%s", ((Rev == 0xB000) || (Rev == 0xA000)) ? "B" : "A");
 	DrawHZText12(msg, 0, 3, 149, gl_color_text, 1);
 
