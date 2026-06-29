@@ -2808,6 +2808,7 @@ re_showfile:
 			u16 keysdown = keysDown();
 			u16 keys_released = keysUp();
 			u16 keysrepeat = keysDownRepeat();
+			u16 keysheld = keysHeld();
 
 			u32 list_game_total;
 			if (page_num == NOR_list)
@@ -2819,7 +2820,22 @@ re_showfile:
 				list_game_total = game_folder_total;
 			}
 
-			if (keysrepeat & KEY_DOWN)
+			// L+R on a game file opens the fullscreen cover/gallery mode (#7).
+			// Detected on either key's press while both are held, BEFORE the bare
+			// L / R handlers, so it is robust to press order: keying off a key_L
+			// set a frame earlier missed the simultaneous press (L ate the frame)
+			// and could let a hair-early R switch pages first. L still gates it, so
+			// bare R keeps paging and L alone keeps its home/info-modifier role.
+			if ((keysdown & (KEY_L | KEY_R)) && (keysheld & KEY_L) && (keysheld & KEY_R) && page_num == SD_list &&
+			    (show_offset + file_select >= folder_total))
+			{
+				Show_fullscreen_cover(&show_offset, &file_select);
+				setRepeat(5, 1);                                    // restore list key repeat
+				DrawPic((u16 *)gImage_SD, 0, 0, 240, 160, 0, 0, 1); // wipe the fullscreen view
+				updata = 1;                                         // redraw list + cover
+				shift = 0;
+			}
+			else if (keysrepeat & KEY_DOWN)
 			{
 				if (file_select + show_offset + 1 < (list_game_total))
 				{
@@ -2910,29 +2926,19 @@ re_showfile:
 			}
 			else if (keysdown & KEY_R)
 			{
-				if (key_L && page_num == SD_list && (show_offset + file_select >= folder_total))
-				{ // L + R on a file: open the fullscreen cover/gallery mode (#7).
-				  // L gates it so bare R keeps switching pages; mirrors L+SELECT.
-					Show_fullscreen_cover(&show_offset, &file_select);
-					setRepeat(5, 1);                                    // restore list key repeat
-					DrawPic((u16 *)gImage_SD, 0, 0, 240, 160, 0, 0, 1); // wipe the fullscreen view
-					updata = 1;                                         // redraw list + cover
-					shift = 0;
-				}
-				else
+				// Bare R pages to the next tab. L+R (fullscreen) is handled above,
+				// so reaching here means L was not held.
+				if (page_num == HELP)
 				{
-					if (page_num == HELP)
-					{
-						continue;
-					}
-					page_num++;
-					if (page_num == NOR_list)
-						DrawPic((u16 *)gImage_NOR, 0, 0, 240, 160, 0, 0, 1);
-					updata = 1;
-					folder_select = 0;
-					shift = 0;
-					goto refind_file;
+					continue;
 				}
+				page_num++;
+				if (page_num == NOR_list)
+					DrawPic((u16 *)gImage_NOR, 0, 0, 240, 160, 0, 0, 1);
+				updata = 1;
+				folder_select = 0;
+				shift = 0;
+				goto refind_file;
 			}
 			else if (keysdown & KEY_B) // return
 			{
