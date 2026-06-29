@@ -1825,6 +1825,64 @@ u32 Load_Thumbnail(TCHAR *pfilename_pic, u32 ftype)
 	return Load_cover_bmp(picpath, COVER_MAX_W, COVER_MAX_H);
 }
 //---------------------------------------------------------------------------------
+// Fullscreen gallery (#7). The gallery for a game is image 0 (the front:
+// <code>_0.bmp hi-res, else the small <code>.bmp upscaled) followed by the
+// consecutive extras <code>_1.bmp..<code>_N.bmp (back cover, in-game, ...).
+
+// True if `path` exists and can be opened for reading.
+static u32 File_exists(const TCHAR *path)
+{
+	if (f_open(&gfile, path, FA_READ) != FR_OK)
+		return 0;
+	f_close(&gfile);
+	return 1;
+}
+//---------------------------------------------------------------------------------
+// Number of gallery images for `code`: 0 if the game has no front cover at all,
+// otherwise 1 (front) plus each consecutive _1.._N extra present, capped at
+// GALLERY_MAX. The front counts whether it is the hi-res _0 or the small base.
+static u32 Gallery_count(const char *code)
+{
+	TCHAR p[40];
+	u32 k;
+
+	sprintf(p, "/IMGS/%c/%c/%s_0.bmp", code[0], code[1], code);
+	if (!File_exists(p))
+	{
+		sprintf(p, "/IMGS/%c/%c/%s.bmp", code[0], code[1], code);
+		if (!File_exists(p))
+			return 0; // no front cover -> nothing to show in fullscreen
+	}
+	for (k = 1; k < GALLERY_MAX; k++)
+	{
+		sprintf(p, "/IMGS/%c/%c/%s_%lu.bmp", code[0], code[1], code, (unsigned long)k);
+		if (!File_exists(p))
+			break; // extras must be contiguous; stop at the first gap
+	}
+	return k; // index 0 plus the _1.._(k-1) extras that existed
+}
+//---------------------------------------------------------------------------------
+// Load gallery image `index` for `code` into the cover slot, ready for the scaler.
+// Index 0 (front) prefers the hi-res _0.bmp and falls back to the small <code>.bmp
+// (which the scaler upscales). Index k>0 loads <code>_k.bmp. THUMB_OK/ABSENT/INVALID.
+static u32 Load_gallery_image(const char *code, u32 index)
+{
+	TCHAR p[40];
+
+	if (index == 0)
+	{
+		u32 r;
+		sprintf(p, "/IMGS/%c/%c/%s_0.bmp", code[0], code[1], code);
+		r = Load_cover_bmp(p, FULLSCREEN_COVER_MAX_W, FULLSCREEN_COVER_MAX_H);
+		if (r != THUMB_ABSENT)
+			return r;
+		sprintf(p, "/IMGS/%c/%c/%s.bmp", code[0], code[1], code);
+		return Load_cover_bmp(p, COVER_MAX_W, COVER_MAX_H);
+	}
+	sprintf(p, "/IMGS/%c/%c/%s_%lu.bmp", code[0], code[1], code, (unsigned long)index);
+	return Load_cover_bmp(p, FULLSCREEN_COVER_MAX_W, FULLSCREEN_COVER_MAX_H);
+}
+//---------------------------------------------------------------------------------
 // Maximum per-game info text read into the cover slot. The slot is borrowed while
 // the info window is open (the cover is reloaded on return), so this costs no
 // extra RAM. The terminator written at buf[n] always stays inside the slot.
@@ -1924,6 +1982,125 @@ u32 Check_file_type(TCHAR *pfilename)
 	else
 	{
 		return 0xff;
+	}
+}
+//---------------------------------------------------------------------------------
+// Fullscreen cover / gallery mode (#7). Entered from the SD list on a game file
+// (L+R). Up/Down switch game (carousel over the file entries); Left/Right page the
+// per-game gallery (front, then _1.._N extras); B or SELECT exit. The source image
+// lives in the cover slot and is scaled straight to VRAM, aspect-preserving. All
+// drawing is direct-to-VRAM: the slot (0x10000) overlaps the Vcache staging area,
+// so going through Vcache would corrupt the very image being shown. The caller's
+// show_offset/file_select are moved to the game left on, so the list redraws there.
+void Show_fullscreen_cover(u32 *p_show_offset, u32 *p_file_select)
+{
+	u32 first = folder_total;                // files sort after the folders
+	u32 last = folder_total + game_total_SD; // one past the last file
+	if (last <= first)
+		return; // nothing playable in this view
+
+	u32 cur = *p_show_offset + *p_file_select;
+	if (cur < first)
+		cur = first;
+	if (cur >= last)
+		cur = last - 1;
+
+	f_chdir(currentpath); // so the ROM headers open (matches the info panel)
+	setRepeat(8, 2);      // gentle key repeat: every step triggers an SD cover load
+
+	char code[9];
+	u32 have_code = 0;
+	u32 gcount = 0;
+	u32 gidx = 0;
+	u32 reload_game = 1; // recompute key + gallery size for `cur`
+	u32 redraw = 1;      // (re)load and draw the current gallery image
+
+	while (1)
+	{
+		if (reload_game)
+		{
+			TCHAR *fn = pFilename_buffer[cur - folder_total].filename;
+			u32 ftype = Check_file_type(fn);
+			have_code = Get_game_key(fn, ftype, code);
+			gcount = have_code ? Gallery_count(code) : 0;
+			gidx = 0;
+			reload_game = 0;
+			redraw = 1;
+		}
+		if (redraw)
+		{
+			TCHAR *fn = pFilename_buffer[cur - folder_total].filename;
+			u32 r = (gcount > 0) ? Load_gallery_image(code, gidx) : THUMB_ABSENT;
+			if (r == THUMB_OK)
+				Draw_scaled_to_box((u16 *)(pReadCache + COVER_SLOT_OFFSET), gl_cover_w, gl_cover_h,
+				                   gl_cover_stride, 0, 0, 240, 160, RGB(0, 0, 0));
+			else
+				// No / unusable cover: black screen with the game's file name.
+				Draw_cover_placeholder(0, 0, 240, 160, RGB(0, 0, 0), fn);
+			if (gcount > 1)
+			{
+				// Position indicator so the user knows more images exist.
+				char ind[12];
+				sprintf(ind, "%lu/%lu", (unsigned long)(gidx + 1), (unsigned long)gcount);
+				DrawHZText12(ind, 0, 2, 160 - 13, gl_color_text, 1);
+			}
+			redraw = 0;
+		}
+
+		VBlankIntrWait();
+		scanKeys();
+		u16 kd = keysDown();
+		u16 kr = keysDownRepeat();
+		if (kd & (KEY_B | KEY_SELECT))
+			break;
+		else if (kr & KEY_UP)
+		{
+			if (cur > first)
+			{
+				cur--;
+				reload_game = 1;
+			}
+		}
+		else if (kr & KEY_DOWN)
+		{
+			if (cur + 1 < last)
+			{
+				cur++;
+				reload_game = 1;
+			}
+		}
+		else if (kr & KEY_LEFT)
+		{
+			if (gcount > 1)
+			{
+				gidx = (gidx == 0) ? gcount - 1 : gidx - 1; // wrap to the last image
+				redraw = 1;
+			}
+		}
+		else if (kr & KEY_RIGHT)
+		{
+			if (gcount > 1)
+			{
+				gidx = (gidx + 1) % gcount; // wrap to the first image
+				redraw = 1;
+			}
+		}
+	}
+
+	// Land the list on the game we left on: keep `cur` inside the 10-row window.
+	if (cur < *p_show_offset)
+	{
+		*p_show_offset = cur;
+		*p_file_select = 0;
+	}
+	else if (cur >= *p_show_offset + 10)
+	{
+		*p_show_offset = cur - 9;
+		*p_file_select = 9;
+	}
+	else
+	{
+		*p_file_select = cur - *p_show_offset;
 	}
 }
 //---------------------------------------------------------------------------------
@@ -2722,17 +2899,29 @@ re_showfile:
 			}
 			else if (keysdown & KEY_R)
 			{
-				if (page_num == HELP)
-				{
-					continue;
+				if (key_L && page_num == SD_list && (show_offset + file_select >= folder_total))
+				{ // L + R on a file: open the fullscreen cover/gallery mode (#7).
+				  // L gates it so bare R keeps switching pages; mirrors L+SELECT.
+					Show_fullscreen_cover(&show_offset, &file_select);
+					setRepeat(5, 1);                                    // restore list key repeat
+					DrawPic((u16 *)gImage_SD, 0, 0, 240, 160, 0, 0, 1); // wipe the fullscreen view
+					updata = 1;                                         // redraw list + cover
+					shift = 0;
 				}
-				page_num++;
-				if (page_num == NOR_list)
-					DrawPic((u16 *)gImage_NOR, 0, 0, 240, 160, 0, 0, 1);
-				updata = 1;
-				folder_select = 0;
-				shift = 0;
-				goto refind_file;
+				else
+				{
+					if (page_num == HELP)
+					{
+						continue;
+					}
+					page_num++;
+					if (page_num == NOR_list)
+						DrawPic((u16 *)gImage_NOR, 0, 0, 240, 160, 0, 0, 1);
+					updata = 1;
+					folder_select = 0;
+					shift = 0;
+					goto refind_file;
+				}
 			}
 			else if (keysdown & KEY_B) // return
 			{

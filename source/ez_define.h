@@ -77,6 +77,17 @@
 #define THUMB_OK 1
 #define THUMB_INVALID 2
 
+// Fullscreen cover / gallery mode (#7). A gallery source is bounded only by the
+// 64KB cover slot, not the screen: Load_cover_bmp rejects any image whose pixels
+// exceed COVER_SLOT_SIZE, so a true 240x160 source (76800 B) does not fit and a
+// portrait box art (<=~120x160) is the practical ceiling. These caps just keep
+// dimensions on-screen; the slot guard does the real limiting.
+#define FULLSCREEN_COVER_MAX_W 240
+#define FULLSCREEN_COVER_MAX_H 160
+// Per-game gallery: index 0 is the front (<code>_0.bmp hi-res, else <code>.bmp
+// upscaled), indices 1.. are extras <code>_1.bmp..<code>_N.bmp probed in order.
+#define GALLERY_MAX 16
+
 #define gImage_Chinese_manual (void *)0x08100000
 #define gImage_English_manual (void *)0x08102648
 #define gImage_splash (void *)0x08104C90
