@@ -1814,6 +1814,17 @@ static u32 Load_cover_bmp(const TCHAR *path, u32 max_w, u32 max_h)
 	return THUMB_OK;
 }
 //---------------------------------------------------------------------------------
+// Build the /IMGS cover path for `code` into `out` (>= 40 bytes). idx < 0 gives
+// the base <code>.bmp (the small list front); idx >= 0 gives <code>_<idx>.bmp
+// (idx 0 = hi-res front, idx >= 1 = gallery extras). One place owns the layout.
+static void Imgs_path(TCHAR *out, const char *code, int idx)
+{
+	if (idx < 0)
+		sprintf(out, "/IMGS/%c/%c/%s.bmp", code[0], code[1], code);
+	else
+		sprintf(out, "/IMGS/%c/%c/%s_%d.bmp", code[0], code[1], code, idx);
+}
+//---------------------------------------------------------------------------------
 u32 Load_Thumbnail(TCHAR *pfilename_pic, u32 ftype)
 {
 	TCHAR picpath[40];
@@ -1821,7 +1832,7 @@ u32 Load_Thumbnail(TCHAR *pfilename_pic, u32 ftype)
 
 	if (!Get_game_key(pfilename_pic, ftype, code))
 		return THUMB_ABSENT;
-	sprintf(picpath, "/IMGS/%c/%c/%s.bmp", code[0], code[1], code);
+	Imgs_path(picpath, code, -1);
 	return Load_cover_bmp(picpath, COVER_MAX_W, COVER_MAX_H);
 }
 //---------------------------------------------------------------------------------
@@ -1846,16 +1857,16 @@ static u32 Gallery_count(const char *code)
 	TCHAR p[40];
 	u32 k;
 
-	sprintf(p, "/IMGS/%c/%c/%s_0.bmp", code[0], code[1], code);
+	Imgs_path(p, code, 0);
 	if (!File_exists(p))
 	{
-		sprintf(p, "/IMGS/%c/%c/%s.bmp", code[0], code[1], code);
+		Imgs_path(p, code, -1);
 		if (!File_exists(p))
 			return 0; // no front cover -> nothing to show in fullscreen
 	}
 	for (k = 1; k < GALLERY_MAX; k++)
 	{
-		sprintf(p, "/IMGS/%c/%c/%s_%lu.bmp", code[0], code[1], code, (unsigned long)k);
+		Imgs_path(p, code, (int)k);
 		if (!File_exists(p))
 			break; // extras must be contiguous; stop at the first gap
 	}
@@ -1872,14 +1883,14 @@ static u32 Load_gallery_image(const char *code, u32 index)
 	if (index == 0)
 	{
 		u32 r;
-		sprintf(p, "/IMGS/%c/%c/%s_0.bmp", code[0], code[1], code);
+		Imgs_path(p, code, 0);
 		r = Load_cover_bmp(p, FULLSCREEN_COVER_MAX_W, FULLSCREEN_COVER_MAX_H);
 		if (r != THUMB_ABSENT)
 			return r;
-		sprintf(p, "/IMGS/%c/%c/%s.bmp", code[0], code[1], code);
+		Imgs_path(p, code, -1);
 		return Load_cover_bmp(p, COVER_MAX_W, COVER_MAX_H);
 	}
-	sprintf(p, "/IMGS/%c/%c/%s_%lu.bmp", code[0], code[1], code, (unsigned long)index);
+	Imgs_path(p, code, (int)index);
 	return Load_cover_bmp(p, FULLSCREEN_COVER_MAX_W, FULLSCREEN_COVER_MAX_H);
 }
 //---------------------------------------------------------------------------------

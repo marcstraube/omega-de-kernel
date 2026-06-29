@@ -293,7 +293,7 @@ void IWRAM_CODE Draw_scaled_to_box(const u16 *src, int src_w, int src_h, int src
                                    int box_x, int box_y, int box_w, int box_h, u16 bg)
 {
 	u16 *vram = VideoBuffer;
-	int out_w, out_h, ox, oy, oxs, oys, col, row;
+	int out_w, out_h, ox, oy, oxs, oys, col, row, draw_w, src_off;
 
 	if (src_w < 1 || src_h < 1 || box_w < 1 || box_h < 1)
 		return;
@@ -329,6 +329,24 @@ void IWRAM_CODE Draw_scaled_to_box(const u16 *src, int src_w, int src_h, int src
 	for (ox = 0; ox < out_w; ox++)
 		scale_colmap[ox] = (u16)(ox * src_w / out_w);
 
+	// The horizontal clip is identical for every row (it depends only on oxs and
+	// out_w), so resolve it once: col/src_off/draw_w give the on-screen span. The
+	// bg fill above already covers the whole box, so a fully off-screen image just
+	// leaves the bars showing.
+	col = oxs;
+	src_off = 0;
+	draw_w = out_w;
+	if (col < 0)
+	{
+		src_off = -col;
+		draw_w -= src_off;
+		col = 0;
+	}
+	if (col + draw_w > 240)
+		draw_w = 240 - col;
+	if (draw_w <= 0)
+		return;
+
 	for (oy = 0; oy < out_h; oy++)
 	{
 		row = oys + oy;
@@ -337,21 +355,7 @@ void IWRAM_CODE Draw_scaled_to_box(const u16 *src, int src_w, int src_h, int src
 		const u16 *srow = src + (oy * src_h / out_h) * src_stride;
 		for (ox = 0; ox < out_w; ox++)
 			scale_line[ox] = srow[scale_colmap[ox]];
-
-		// Clip the assembled row to the screen horizontally before the copy.
-		col = oxs;
-		int draw_w = out_w;
-		int src_off = 0;
-		if (col < 0)
-		{
-			src_off = -col;
-			draw_w -= src_off;
-			col = 0;
-		}
-		if (col + draw_w > 240)
-			draw_w = 240 - col;
-		if (draw_w > 0)
-			dmaCopy(scale_line + src_off, vram + row * 240 + col, draw_w * 2);
+		dmaCopy(scale_line + src_off, vram + row * 240 + col, draw_w * 2);
 	}
 }
 //---------------------------------------------------------------------------------
