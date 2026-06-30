@@ -55,6 +55,7 @@ key = value          # one setting per line
 | `sd_red` / `sd_green` / `sd_blue` | `on`, `off` | SD-activity-LED colour channels |
 | `mode_b` | `rumble`, `ram`, `link` | Hardware function for a NOR-standalone game (Mode B) |
 | `backup_count` | `0`–`9` | Save-backup generations to keep (see `SAVE_BACKUP.md`) |
+| `hard_reset` | `on`, `off` | Hard-reset the console on every launch; hold **L** to invert (see `HARD_RESET.md`) |
 
 Booleans also accept `1`/`0` in place of `on`/`off`.
 
