@@ -83,6 +83,7 @@ u16 gl_cheat_on;
 u16 gl_auto_save_sel;
 u16 gl_ModeB_init;
 u16 gl_toggle_backup;
+u16 gl_toggle_reset;      // hard-reset-on-launch toggle (issue #19); L inverts it at launch
 u16 gl_per_game_settings; // master switch for the per-game override layer (issue #5), default on
 
 u16 gl_led_open_sel;
@@ -1437,6 +1438,12 @@ void CheckSwitch(void)
 	if ((gl_per_game_settings != 0x0) && (gl_per_game_settings != 0x1))
 	{
 		gl_per_game_settings = 0x1; // default on; fresh NOR (0xFFFF) lands here too
+	}
+
+	gl_toggle_reset = Read_SET_info(assress_hard_reset);
+	if ((gl_toggle_reset != 0x0) && (gl_toggle_reset != 0x1))
+	{
+		gl_toggle_reset = 0x0; // default off: today's behaviour (only L held -> hard reset)
 	}
 
 	u16 led_status = (gl_led_open_sel << 7) | (gl_Breathing_R << 5) | (gl_Breathing_G << 4) | (gl_Breathing_B << 3) |
@@ -3143,6 +3150,14 @@ re_showfile:
 	}
 }
 //---------------------------------------------------------------
+// Resolve the hard-reset flag for a launch (issue #19): gl_toggle_reset sets
+// the default, holding L inverts it. Off -> only L forces a hard reset (the
+// stock behaviour); on -> every launch hard-resets unless L is held.
+static u32 Resolve_reset_choice(u32 key_L)
+{
+	return key_L ? !gl_toggle_reset : gl_toggle_reset;
+}
+//---------------------------------------------------------------
 void Boot_NOR_game(u32 show_offset, u32 file_select, u32 key_L)
 {
 	// TCHAR savfilename[100];
@@ -3195,7 +3210,7 @@ void Boot_NOR_game(u32 show_offset, u32 file_select, u32 key_L)
 	FAT_table_buffer[0x1F4 / 4] = SET_PARAMETER_MODE;
 	Send_FATbuffer(FAT_table_buffer, 1); // only RTS FAT and some parameter
 	// wait_btn();
-	SetRompageWithHardReset(pNorFS[show_offset + file_select].rompage, key_L);
+	SetRompageWithHardReset(pNorFS[show_offset + file_select].rompage, Resolve_reset_choice(key_L));
 	// intentional halt: hard reset into the selected ROM is in progress
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wanalyzer-infinite-loop"
@@ -3681,7 +3696,7 @@ re_show_menu:
 		Send_FATbuffer(FAT_table_buffer, 1);
 
 		res = LoadEMU2PSRAM(pfilename, is_EMU);
-		SetRompageWithHardReset(0x200, key_L);
+		SetRompageWithHardReset(0x200, Resolve_reset_choice(key_L));
 		while (1)
 			;
 	}
@@ -3714,7 +3729,7 @@ re_show_menu:
 			Send_FATbuffer(FAT_table_buffer, 0);
 			GBApatch_Cleanrom(PSRAMBase_S98, gamefilesize);
 			// wait_btn();
-			SetRompageWithHardReset(0x200, key_L);
+			SetRompageWithHardReset(0x200, Resolve_reset_choice(key_L));
 			break;
 		case 1: // PSRAM BOOT WITH ADDON
 			ShowbootProgress(gl_loading_game);
@@ -3812,7 +3827,7 @@ re_show_menu:
 				Send_FATbuffer(FAT_table_buffer, 0); // Loading rom
 			}
 			// wait_btn();
-			SetRompageWithHardReset(0x200, key_L);
+			SetRompageWithHardReset(0x200, Resolve_reset_choice(key_L));
 			break;
 		case 2:                   // WRITE TO NOR CLEAN
 			f_chdir(currentpath); // return to game folder

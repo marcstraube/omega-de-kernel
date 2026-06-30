@@ -152,6 +152,7 @@
 #define assress_backup 23
 #define assress_per_game_settings 24 // master switch for the per-game override layer (issue #5)
 #define assress_preview_size 25      // in-list cover preview size: standard / small (issue #8)
+#define assress_hard_reset 26        // hard-reset-on-launch toggle, L inverts it (issue #19)
 
 #define assress_saveMODE 64
 #define assress_max 65

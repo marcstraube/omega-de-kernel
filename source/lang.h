@@ -95,6 +95,7 @@ extern char *gl_Breathing_light;
 extern char *gl_SD_working;
 
 extern char *gl_lang_toggle_backup;
+extern char *gl_lang_toggle_reset; // hard-reset-on-launch toggle label (issue #19)
 extern char *gl_disabled;
 extern char *gl_enabled;
 extern char *gl_backup_save;

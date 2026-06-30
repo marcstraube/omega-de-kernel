@@ -16,6 +16,7 @@ u16 auto_save_sel;
 u16 ModeB_INIT;
 u16 led_open_sel;
 u16 toggle_backup;
+u16 toggle_reset; // mirror of gl_toggle_reset while editing (issue #19)
 u16 per_game_set; // mirror of gl_per_game_settings while editing (issue #5)
 
 u16 Breathing_R;
@@ -29,6 +30,7 @@ u16 SD_B;
 extern u16 gl_auto_save_sel;
 extern u16 gl_ModeB_init;
 extern u16 gl_toggle_backup;
+extern u16 gl_toggle_reset;
 extern u16 gl_per_game_settings;
 
 extern u16 gl_led_open_sel;
@@ -78,6 +80,7 @@ u32 Setting_window2(void)
 	u8 led_pos = 1;
 	u8 backup_pos = 1;
 	u8 per_game_pos = 1;
+	u8 reset_pos = 1;
 	u16 led_drawn_state = 0xFFFF; // last-drawn LED state; forces a region clear on first draw and on LED toggle
 
 	u8 ModeB_pos = 3;
@@ -113,6 +116,7 @@ u32 Setting_window2(void)
 	SD_G = gl_SD_G;
 	SD_B = gl_SD_B;
 	per_game_set = gl_per_game_settings;
+	toggle_reset = gl_toggle_reset;
 
 	while (1)
 	{
@@ -201,11 +205,11 @@ u32 Setting_window2(void)
 				sprintf(msg, "%s", "B");
 				DrawHZText12(msg, 0, x_offset + 5 * 6 + 5 * 6 + 15 + 15 + 15, y_offset + line_x * 4,
 				             (led_pos == 7) ? gl_color_selected : gl_color_text, 1);
-				line_total = 5; // + per-game master switch row (#5)
+				line_total = 6; // + per-game master switch (#5) + hard-reset toggle (#19)
 			}
 			else
 			{
-				line_total = 5; // + per-game master switch row (#5)
+				line_total = 6; // + per-game master switch (#5) + hard-reset toggle (#19)
 			}
 
 			u8 backup_row = (led_open_sel == 0x1) ? 5 : 3; // no LED colour sub-rows when LED is off
@@ -241,6 +245,18 @@ u32 Setting_window2(void)
 			DrawHZText12(per_game_set ? gl_enabled : gl_disabled, 0, pg_box_x + 15, y_offset + line_x * pergame_row,
 			             (per_game_pos == 0) ? gl_color_selected : gl_color_text, 1);
 
+			// Hard-reset-on-launch toggle (#19), laid out like the per-game row: a
+			// blue label, a checkbox whose x follows the label width (so it fits both
+			// languages), and an Enabled/Disabled state label that is the selectable
+			// sub-item. It sits one row below per-game.
+			u8 reset_row = pergame_row + 1;
+			u32 hr_box_x = set_offset + strlen(gl_lang_toggle_reset) * 6 + 6;
+			DrawHZText12(gl_lang_toggle_reset, 0, set_offset, y_offset + line_x * reset_row, gl_color_selected, 1);
+			Draw_select_icon(hr_box_x, y_offset + line_x * reset_row, (toggle_reset == 0x1));
+			ClearWithBG((u16 *)gImage_SET2, hr_box_x + 15, y_offset + line_x * reset_row, 8 * 6, 13, 1);
+			DrawHZText12(toggle_reset ? gl_enabled : gl_disabled, 0, hr_box_x + 15, y_offset + line_x * reset_row,
+			             (reset_pos == 0) ? gl_color_selected : gl_color_text, 1);
+
 			u32 offsety;
 
 			for (line = 0; line < line_total; line++)
@@ -257,6 +273,8 @@ u32 Setting_window2(void)
 						clean_color = gl_color_btn_clean;
 					else if ((line == select) && (4 == select) && (per_game_pos == 1))
 						clean_color = gl_color_btn_clean;
+					else if ((line == select) && (5 == select) && (reset_pos == 1))
+						clean_color = gl_color_btn_clean;
 					else
 						clean_color = gl_color_MENU_btn;
 				}
@@ -272,6 +290,8 @@ u32 Setting_window2(void)
 					offsety = y_offset + line_x * backup_row; // backup row position tracks the LED state
 				else if (line == 4)
 					offsety = y_offset + line_x * (backup_row + 1); // per-game row sits just below backup
+				else if (line == 5)
+					offsety = y_offset + line_x * (backup_row + 2); // hard-reset row sits below per-game
 				// if(line>1) offsety += line_x;
 
 				Clear(202, offsety - 2, 30, 14, clean_color, 1);
@@ -393,6 +413,10 @@ u32 Setting_window2(void)
 				{
 					per_game_pos = 1;
 				}
+				if (select == 5)
+				{
+					reset_pos = 1;
+				}
 				re_show = 1;
 			}
 			else if (keys & KEY_LEFT)
@@ -423,6 +447,10 @@ u32 Setting_window2(void)
 				else if (select == 4)
 				{
 					per_game_pos = 0;
+				}
+				else if (select == 5)
+				{
+					reset_pos = 0;
 				}
 				re_show = 1;
 			}
@@ -540,6 +568,22 @@ u32 Setting_window2(void)
 					}
 					}
 				}
+				else if (select == 5)
+				{
+					switch (reset_pos)
+					{
+					case 0:
+						toggle_reset = !toggle_reset;
+						break;
+					case 1:
+					{
+						save_set2_info();
+						Set_OK = 0;
+						gl_toggle_reset = toggle_reset; // take effect on the next launch
+						break;
+					}
+					}
+				}
 				re_show = 1;
 			}
 			break;
@@ -567,6 +611,7 @@ void save_set2_info(void)
 	SET_info_buffer[assress_SD_B] = SD_B;
 	SET_info_buffer[assress_backup] = BACKUP_SET_TAG | toggle_backup;
 	SET_info_buffer[assress_per_game_settings] = per_game_set;
+	SET_info_buffer[assress_hard_reset] = toggle_reset;
 
 	// save to nor
 	Save_SET_info(SET_info_buffer, 0x200);

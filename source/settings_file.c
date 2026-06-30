@@ -76,6 +76,7 @@ static const setting_desc settings[] = {
 
     {"hardware", "mode_b", assress_ModeB_INIT, ST_MODEB, 2, 0},
     {"hardware", "backup_count", assress_backup, ST_BACKUP, BACKUP_GEN_DEFAULT, 0},
+    {"hardware", "hard_reset", assress_hard_reset, ST_BOOL, 0, 0},
 };
 #define SETTINGS_COUNT (sizeof(settings) / sizeof(settings[0]))
 
