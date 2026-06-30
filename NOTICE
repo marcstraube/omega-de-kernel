@@ -8,4 +8,10 @@ Based on the EZ-FLASH Omega Definitive Edition kernel by EZ-FLASH
 Portions of the save-backup feature are ported from the SimpleLight DE fork
 by Veikkos and contributors (https://github.com/Sterophonick/omega-de-kernel).
 
+This kernel embeds the Game Boy / Game Boy Color emulator Jagoomba Color
+(v0.5, Omega DE build) by EvilJagaGenius
+(https://github.com/EvilJagaGenius/jagoombacolor), itself based on Goomba
+Color and Goomba by FluBBa. The emulator is a separate work, distributed
+under its own terms, and is not covered by the Apache-2.0 license below.
+
 Licensed under the Apache License, Version 2.0; see LICENSE.
