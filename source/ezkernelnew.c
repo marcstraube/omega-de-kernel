@@ -61,6 +61,8 @@ u16 gl_cover_h;      // current cover source height (top-down rows)
 u16 gl_cover_stride; // source row stride in pixels (BMP rounds rows up to 4 bytes)
 u16 gl_cover_draw_w; // on-screen width of the in-list cover preview (preset fit, #8)
 u16 gl_cover_draw_h; // on-screen height of the in-list cover preview (preset fit, #8)
+u16 gl_cover_band_w; // cover footprint the list band is currently truncated for (#39);
+u16 gl_cover_band_h; // 0 = no cover shown (full-width names). Triggers a full redraw on change.
 u16 gl_preview_size; // in-list cover preview size preset: standard / small (#8)
 u16 gl_ingame_RTC_open_status;
 u32 gl_clock_dirty = 1; // ShowTime: repaint the clock once after its background is redrawn (#26)
@@ -171,18 +173,20 @@ static u32 Cover_name_chars(void)
 	return (u32)n;
 }
 
-// True if list row `line` (0-based) overlaps the cover band and so must leave room
-// for it. The cover occupies the bottom gl_cover_draw_h px; row `line` spans 14 px
-// from y = 20 + 14*line. Generalises the old fixed "line > 3" (which assumed the
-// stock 80 px cover) to the preset height (#8).
+// True if list row `line` (0-based) is covered by the in-list cover and so must
+// leave room for it. A row counts once its vertical centre falls inside the cover
+// (the cover occupies the bottom gl_cover_draw_h px), so a shorter cover that only
+// clips a row's bottom edge leaves that row full width instead of truncating it
+// against empty space. Row `line` spans 14 px from y = 20 + 14*line, centre +7.
+// For the stock 80 px cover this reproduces the old fixed "line > 3" exactly.
 static u32 Row_is_cover_row(u32 line, u32 haveThumbnail)
 {
-	u32 row_bottom = 20 + 14 * line + 13;
+	u32 row_center = 20 + 14 * line + 7;
 	u32 cover_top = 160 - gl_cover_draw_h;
 
 	if (!haveThumbnail)
 		return 0;
-	return row_bottom > cover_top;
+	return row_center >= cover_top;
 }
 //---------------------------------------------------------------------------------
 void Show_ICON_filename_SD(u32 show_offset, u32 file_select, u32 haveThumbnail)
@@ -2679,11 +2683,24 @@ re_showfile:
 						Cover_draw_size(gl_cover_w, gl_cover_h, &gl_cover_draw_w, &gl_cover_draw_h);
 					else
 						Preview_box(&gl_cover_draw_w, &gl_cover_draw_h);
+					// #39: the name-column width tracks the drawn cover (the selected
+					// game's). A partial refresh only repaints two rows, so when the
+					// footprint changes between selections the other band rows keep the
+					// old width. Force a full redraw so every row re-truncates to it.
+					if (gl_cover_draw_w != gl_cover_band_w || gl_cover_draw_h != gl_cover_band_h)
+					{
+						gl_cover_band_w = gl_cover_draw_w;
+						gl_cover_band_h = gl_cover_draw_h;
+						updata = 1;
+					}
 				}
 				else
 				{
 					if ((has_cover_old == 1) && (has_cover == 0))
 					{
+						// Cover gone: the band returns to full-width names, redraw all.
+						gl_cover_band_w = 0;
+						gl_cover_band_h = 0;
 						updata = 1;
 					}
 				}
@@ -2769,10 +2786,13 @@ re_showfile:
 
 			if (updata && gl_show_Thumbnail && has_cover && (page_num == SD_list))
 			{
-				// Clear the whole bottom-right cover region (max size) first so a
-				// previous taller/wider cover or a larger preset cannot leave ghost
-				// pixels behind.
-				ClearWithBG((u16 *)gImage_SD, 240 - COVER_MAX_W, COVER_REGION_TOP, COVER_MAX_W, COVER_MAX_H, 1);
+				// Clear exactly the cover's own footprint (its real width AND height,
+				// bottom-right anchored): a smaller cover must not erase the file names /
+				// selection bar that now reach up to its left edge, nor the full-width
+				// names in the rows above a shorter cover (#39). A footprint change forces
+				// a full list redraw above, so a previous larger cover leaves no ghost.
+				ClearWithBG((u16 *)gImage_SD, 240 - gl_cover_draw_w, 160 - gl_cover_draw_h, gl_cover_draw_w,
+				            gl_cover_draw_h, 1);
 				u16 dw = gl_cover_draw_w;
 				u16 dh = gl_cover_draw_h;
 				// List background at the cover region; fills the <=1px rounding margin
