@@ -2905,6 +2905,7 @@ re_showfile:
 				{
 					file_select--;
 					updata = 3;
+					shift = 0;
 				}
 				else
 				{
@@ -2912,9 +2913,9 @@ re_showfile:
 					{
 						show_offset--;
 						updata = 1;
+						shift = 0;
 					}
 				}
-				shift = 0;
 			}
 			else if (keysrepeat & KEY_LEFT)
 			{
@@ -2926,6 +2927,7 @@ re_showfile:
 						show_offset = 0;
 
 					updata = 1;
+					shift = 0;
 				}
 				else
 				{
@@ -2933,9 +2935,9 @@ re_showfile:
 					{
 						file_select = 0;
 						updata = 1;
+						shift = 0;
 					}
 				}
-				shift = 0;
 			}
 			else if (keysrepeat & KEY_RIGHT)
 			{
@@ -2947,22 +2949,27 @@ re_showfile:
 						show_offset = list_game_total - 10;
 
 					updata = 1;
+					shift = 0;
 				}
-				shift = 0;
 			}
 			else if (keysdown & KEY_L)
 			{
 				key_L = 1;
 				if (page_num)
 				{
+					// Coming from another tab: reset the view and reload the cover.
+					// shift and updata must move together (as in the nav branches) so
+					// the marquee's cover-width clamp is recomputed. Resetting shift on
+					// its own -- as this did when already on SD_list -- dropped the
+					// clamp and let the scrolling name overrun the cover preview (#44).
 					file_select = 0;
 					show_offset = 0;
 					updata = 1;
+					shift = 0;
 					DrawPic((u16 *)gImage_SD, 0, 0, 240, 160, 0, 0, 1);
 					folder_select = 1;
 				}
 				page_num = SD_list;
-				shift = 0;
 			}
 			else if (keys_released & KEY_L)
 			{
